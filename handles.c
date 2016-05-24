@@ -133,6 +133,28 @@ void handle_release (VdpHandle handle)
    handle_destroy(handle);
 }
 
+enum HandleType handle_get_type(VdpHandle handle)
+{
+  unsigned int index = handle - 1;
+  enum HandleType htype = htype_none;
+  void *data = NULL;
+
+  if (handle == VDP_INVALID_HANDLE)
+    return htype_none;
+
+  if (pthread_rwlock_rdlock(&ht.lock))
+    return htype_none;
+
+  if (index >= 0 && index < ht.size && ht.data[index].refCnt > 0)
+  {
+    data = ht.data[index].data;
+    if(data)
+      htype = ht.data[index].type;
+  }
+  
+  pthread_rwlock_unlock(&ht.lock);
+  return htype;
+} 
 void handles_print()
 {
 	int i;

@@ -52,6 +52,18 @@ static EGLSurface    eglSurface = EGL_NO_SURFACE;
 
 static void (*Log)(int loglevel, const char *format, ...);
 
+
+enum col_plane
+{
+  y_plane,
+  u_plane,
+  v_plane,
+  uv_plane
+};
+
+static void createTexture2D(fbdev_pixmap *pm, surface_nv_ctx_t *nv, video_surface_ctx_t *vs, enum col_plane cp);
+static void createTextureRGB2D(fbdev_pixmap *pm, surface_nv_ctx_t *nv, output_surface_ctx_t *vs);
+
 void glVDPAUUnmapSurfacesNV(GLsizei numSurfaces, const vdpauSurfaceNV *surfaces);
 
 static int TestEGLError(const char* pszLocation){
@@ -162,28 +174,31 @@ vdpauSurfaceNV glVDPAURegisterVideoSurfaceNV (const void *vdpSurface, uint32_t t
    vdpauSurfaceNV surfaceNV;
 
    assert(target == GL_TEXTURE_2D);
-   
+
+   enum HandleType type = handle_get_type((uint32_t)vdpSurface);
+   assert(type == htype_video);
+
    video_surface_ctx_t *vs = (video_surface_ctx_t *)handle_get((uint32_t)vdpSurface);
    assert(vs);
-   
+
    assert(vs->chroma_type == VDP_CHROMA_TYPE_420);
 
    assert(numTextureNames <= MAX_NUM_TEXTURES);
-   
+
    surface_nv_ctx_t *nv = handle_create(sizeof(*nv), &surfaceNV, htype_nvidia_vdpau);
    assert(nv);
 
    assert(vs->vdpNvState == VdpauNVState_Unregistered);
 
    vs->vdpNvState = VdpauNVState_Registered;
-   
+
    nv->surface 		= (uint32_t)vdpSurface;
    nv->vdpNvState 	= VdpauNVState_Registered;
    nv->target		= target;
    nv->numTextureNames 	= numTextureNames;
    memset(nv->textureNames, 0, sizeof(nv->textureNames));
    memcpy(nv->textureNames, textureNames, sizeof(uint) * numTextureNames);
-   
+
    nv->convY = cedarv_malloc(vs->plane_size);
    nv->convU = cedarv_malloc(vs->plane_size/4);
    nv->convV = cedarv_malloc(vs->plane_size/4);
@@ -196,15 +211,56 @@ vdpauSurfaceNV glVDPAURegisterVideoSurfaceNV (const void *vdpSurface, uint32_t t
       handle_destroy(surfaceNV);
       return 0;
    }
-
+   nv->surfaceType = type;
    //handle_release(vdpSurface);
  
    return surfaceNV;
 }
 
 vdpauSurfaceNV glVDPAURegisterOutputSurfaceNV (const void *vdpSurface, uint32_t target,
-					     GLsizei numTextureNmes, const uint *textureNames)
+					     GLsizei numTextureNames, const uint *textureNames)
 {
+
+  vdpauSurfaceNV surfaceNV;
+
+  assert(target == GL_TEXTURE_2D);
+
+  enum HandleType type = handle_get_type((uint32_t)vdpSurface);
+  assert(type == htype_output);
+
+  output_surface_ctx_t *vs = (output_surface_ctx_t *)handle_get((uint32_t)vdpSurface);
+  assert(vs);
+
+  assert(numTextureNames == 1);
+
+  surface_nv_ctx_t *nv = handle_create(sizeof(*nv), &surfaceNV, htype_nvidia_vdpau);
+  assert(nv);
+
+  assert(vs->vdpNvState == VdpauNVState_Unregistered);
+
+  vs->vdpNvState = VdpauNVState_Registered;
+
+  nv->surface 		= (uint32_t)vdpSurface;
+  nv->vdpNvState 	= VdpauNVState_Registered;
+  nv->target		= target;
+  nv->numTextureNames 	= numTextureNames;
+  memset(nv->textureNames, 0, sizeof(nv->textureNames));
+  memcpy(nv->textureNames, textureNames, sizeof(uint) * numTextureNames);
+
+  nv->convY = cedarv_malloc(vs->vs->plane_size * 3);
+  nv->conv_width 	= (vs->width + 15) & ~15;
+  nv->conv_height	= (vs->height + 15) & ~15;
+
+  if (! cedarv_isValid(nv->convY) )
+  {
+    handle_release(nv->surface);
+    handle_destroy(surfaceNV);
+    return 0;
+  }
+  nv->surfaceType = type;
+   //handle_release(vdpSurface);
+ 
+  return surfaceNV;
 }
 
 int glVDPAUIsSurfaceNV (vdpauSurfaceNV surface)
@@ -254,13 +310,128 @@ void glVDPAUGetSurfaceivNV(vdpauSurfaceNV surface, uint32_t pname, GLsizei bufSi
 void glVDPAUSurfaceAccessNV(vdpauSurfaceNV surface, uint32_t access)
 {
 }
-enum col_plane
+
+static void mapVideoTextures(GLsizei numSurfaces, const vdpauSurfaceNV *surfaces)
 {
-   y_plane,
-   u_plane,
-   v_plane,
-   uv_plane
-};
+  int i, j;
+  for(j = 0; j < numSurfaces; j++)
+  {
+    surface_nv_ctx_t *nv = handle_get(surfaces[j]);
+    assert(nv);
+    const EGLint renderImageAttrs[] = {
+      EGL_IMAGE_PRESERVED_KHR, EGL_FALSE, 
+      EGL_NONE
+    };
+
+    video_surface_ctx_t *vs = handle_get(nv->surface);
+    assert(vs);
+
+    //Log(0, "glVDPAUMapSurfacesNV: starting MB2Yuv planar convert");
+    cedarv_disp_convertMb2Yuv420(nv->conv_width, nv->conv_height,
+                                 vs->dataY, vs->dataU, nv->convY, nv->convU, nv->convV);
+    //Log(0, "glVDPAUMapSurfacesNV: finished MB2Yuv planar convert");
+
+    for(i = 0; (nv->vdpNvState == VdpauNVState_Registered) && (i < nv->numTextureNames); i++)
+    {
+
+      glActiveTexture(GL_TEXTURE0 + nv->textureNames[i]);
+      EGLint iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      
+      glBindTexture(GL_TEXTURE_2D, nv->textureNames[i]);
+      iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      if (i == 0 || i == 1 )
+      {
+        createTexture2D(&nv->cMemPixmap[i], nv, vs, y_plane);
+      }
+      else if(i == 2 || i == 3) 
+      {
+        if(nv->numTextureNames == 6)
+          createTexture2D(&nv->cMemPixmap[i], nv, vs, u_plane);
+        else
+          createTexture2D(&nv->cMemPixmap[i], nv, vs, uv_plane);
+      }
+      else
+      {
+        createTexture2D(&nv->cMemPixmap[i], nv, vs, v_plane);
+      }
+      vs->vdpNvState = VdpauNVState_Mapped;
+      //create the chrominance egl image
+      nv->eglImage[i] = peglCreateImageKHR(eglDisplay,
+                                           EGL_NO_CONTEXT,  
+                                           EGL_NATIVE_PIXMAP_KHR,
+                                           &nv->cMemPixmap[i],
+                                           renderImageAttrs);
+      iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      pglEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)nv->eglImage[i]);
+      iErr = glGetError();
+      //assert (iErr == GL_NO_ERROR);
+    }
+    handle_release(nv->surface);
+    nv->vdpNvState = VdpauNVState_Mapped;
+    handle_release(surfaces[j]);
+  }
+}
+
+static void mapOutputTextures(GLsizei numSurfaces, const vdpauSurfaceNV *surfaces)
+{
+  int i, j;
+  for(j = 0; j < numSurfaces; j++)
+  {
+    surface_nv_ctx_t *nv = handle_get(surfaces[j]);
+    assert(nv);
+    const EGLint renderImageAttrs[] = {
+      EGL_IMAGE_PRESERVED_KHR, EGL_FALSE, 
+      EGL_NONE
+    };
+
+    output_surface_ctx_t *vs = handle_get(nv->surface);
+    assert(vs);
+
+    //Log(0, "glVDPAUMapSurfacesNV: starting MB2Yuv planar convert");
+    cedarv_disp_convertMb2RGB(nv->conv_width, nv->conv_height,
+                                 vs->vs->dataY, vs->vs->dataU, nv->convY);
+    //Log(0, "glVDPAUMapSurfacesNV: finished MB2Yuv planar convert");
+
+    for(i = 0; (nv->vdpNvState == VdpauNVState_Registered) && (i < nv->numTextureNames); i++)
+    {
+
+      glActiveTexture(GL_TEXTURE0 + nv->textureNames[i]);
+      EGLint iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      
+      glBindTexture(GL_TEXTURE_2D, nv->textureNames[i]);
+      iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      createTextureRGB2D(&nv->cMemPixmap[i], nv, vs);
+      vs->vdpNvState = VdpauNVState_Mapped;
+      //create the chrominance egl image
+      nv->eglImage[i] = peglCreateImageKHR(eglDisplay,
+                                           EGL_NO_CONTEXT,  
+                                           EGL_NATIVE_PIXMAP_KHR,
+                                           &nv->cMemPixmap[i],
+                                           renderImageAttrs);
+      iErr = eglGetError();
+      assert (iErr == EGL_SUCCESS);
+      pglEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)nv->eglImage[i]);
+      iErr = glGetError();
+      assert (iErr == GL_NO_ERROR);
+    }
+    handle_release(nv->surface);
+    nv->vdpNvState = VdpauNVState_Mapped;
+    handle_release(surfaces[j]);
+  }
+}
 
 static void createTexture2D(fbdev_pixmap *pm, surface_nv_ctx_t *nv, video_surface_ctx_t *vs, enum col_plane cp)
 {
@@ -341,74 +512,51 @@ static void createTexture2D(fbdev_pixmap *pm, surface_nv_ctx_t *nv, video_surfac
                  pm->height, 0, format, GL_UNSIGNED_BYTE, NULL);
    TestEGLError("createTexture2D");
 }
+
+static void createTextureRGB2D(fbdev_pixmap *pm, surface_nv_ctx_t *nv, output_surface_ctx_t *vs)
+{
+  GLenum format = GL_RGB;
+  int buf_size = 24;
+  CEDARV_MEMORY mem;
+  int width = 0;
+  int height = 0;
+
+  mem = nv->convY;
+  width = nv->conv_width;
+  height = nv->conv_height;
+
+  pm->bytes_per_pixel = buf_size / 8;
+  pm->buffer_size 	= buf_size;
+  pm->red_size 	    = 8;
+  pm->green_size 	= 8;
+  pm->blue_size 	= 8;
+  pm->alpha_size 	= 0;
+  pm->luminance_size = 0;
+  pm->flags 		= FBDEV_PIXMAP_SUPPORTS_UMP;
+  pm->format 		= 0;
+  pm->width 		= width;
+  pm->height 		= height;
+  ump_reference_add(mem.mem_id);
+  pm->data 		= (short unsigned int*)mem.mem_id;
+   //cedarv_flush_cache(mem, cedarv_getSize(mem));
+   
+  glTexImage2D(GL_TEXTURE_2D, 0, format, pm->width, 
+               pm->height, 0, format, GL_UNSIGNED_BYTE, NULL);
+  TestEGLError("createTextureRGB2D");
+}
+
 void glVDPAUMapSurfacesNV(GLsizei numSurfaces, const vdpauSurfaceNV *surfaces)
 {
-  int i, j;
   glEnable(GL_TEXTURE_2D);
 
-  for(j = 0; j < numSurfaces; j++)
-  {
-    surface_nv_ctx_t *nv = handle_get(surfaces[j]);
-    assert(nv);
-    const EGLint renderImageAttrs[] = {
-      EGL_IMAGE_PRESERVED_KHR, EGL_FALSE, 
-      EGL_NONE
-    };
-
-    video_surface_ctx_t *vs = handle_get(nv->surface);
-    assert(vs);
-
-    //Log(0, "glVDPAUMapSurfacesNV: starting MB2Yuv planar convert");
-    cedarv_disp_convertMb2Yuv420(nv->conv_width, nv->conv_height,
-                            vs->dataY, vs->dataU, nv->convY, nv->convU, nv->convV);
-    //Log(0, "glVDPAUMapSurfacesNV: finished MB2Yuv planar convert");
-
-    for(i = 0; (nv->vdpNvState == VdpauNVState_Registered) && (i < nv->numTextureNames); i++)
-    {
-
-      glActiveTexture(GL_TEXTURE0 + nv->textureNames[i]);
-      EGLint iErr = eglGetError();
-      assert (iErr == EGL_SUCCESS);
-      
-      glBindTexture(GL_TEXTURE_2D, nv->textureNames[i]);
-      iErr = eglGetError();
-      assert (iErr == EGL_SUCCESS);
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-      iErr = eglGetError();
-      assert (iErr == EGL_SUCCESS);
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      if (i == 0 || i == 1 )
-      {
-        createTexture2D(&nv->cMemPixmap[i], nv, vs, y_plane);
-      }
-      else if(i == 2 || i == 3) 
-      {
-        if(nv->numTextureNames == 6)
-           createTexture2D(&nv->cMemPixmap[i], nv, vs, u_plane);
-        else
-           createTexture2D(&nv->cMemPixmap[i], nv, vs, uv_plane);
-      }
-      else
-      {
-           createTexture2D(&nv->cMemPixmap[i], nv, vs, v_plane);
-      }
-      vs->vdpNvState = VdpauNVState_Mapped;
-      //create the chrominance egl image
-      nv->eglImage[i] = peglCreateImageKHR(eglDisplay,
-			  EGL_NO_CONTEXT,  
-			  EGL_NATIVE_PIXMAP_KHR,
-			  &nv->cMemPixmap[i],
-			  renderImageAttrs);
-      iErr = eglGetError();
-      assert (iErr == EGL_SUCCESS);
-      pglEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)nv->eglImage[i]);
-      iErr = glGetError();
-      assert (iErr == GL_NO_ERROR);
-    }
-    handle_release(nv->surface);
-    nv->vdpNvState = VdpauNVState_Mapped;
-    handle_release(surfaces[j]);
-  }
+  surface_nv_ctx_t *nv  = handle_get(surfaces[0]);
+  enum HandleType surfaceType = nv->surfaceType;
+  handle_release(surfaces[0]);
+  
+  if(surfaceType == htype_video)
+    mapVideoTextures(numSurfaces, surfaces);
+  else if(surfaceType == htype_output)
+    mapOutputTextures(numSurfaces, surfaces);
 }
 
 void glVDPAUUnmapSurfacesNV(GLsizei numSurfaces, const vdpauSurfaceNV *surfaces)
@@ -429,8 +577,8 @@ void glVDPAUUnmapSurfacesNV(GLsizei numSurfaces, const vdpauSurfaceNV *surfaces)
       glBindTexture(GL_TEXTURE_2D, 0);
       if(nv->eglImage[i])
       {
-	peglDestroyImageKHR(eglDisplay, nv->eglImage[i]);
-	nv->eglImage[i] = 0;
+         peglDestroyImageKHR(eglDisplay, nv->eglImage[i]);
+         nv->eglImage[i] = 0;
       }
       ump_reference_release(nv->cMemPixmap[i].data);
       //cedarv_setBufferInvalid((CEDARV_MEMORY)nv->cMemPixmap[i].data);

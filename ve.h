@@ -117,6 +117,7 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_MPEG_MV5             0x1A8
 #define CEDARV_MPEG_MV6             0x1AC
 #define CEDARV_MPEG_JPEG_SIZE		0x1b8
+#define CEDARV_MPEG_JPEG_MCU        0x1bc
 #define CEDARV_MPEG_JPEG_RES_INT		0x1c0
 
 #define CEDARV_MPEG_ERROR           0x1c4
@@ -124,6 +125,8 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_MPEG_ROT_LUMA		0x1cc
 #define CEDARV_MPEG_ROT_CHROMA		0x1d0
 #define CEDARV_MPEG_SDROT_CTRL		0x1d4
+#define CEDARV_MPEG_JPEG_MCU_START  0x1d8
+#define CEDARV_MPEG_JPEG_MCU_END    0x1dc
 #define CEDARV_MPEG_RAM_WRITE_PTR		0x1e0
 #define CEDARV_MPEG_RAM_WRITE_DATA		0x1e4
 

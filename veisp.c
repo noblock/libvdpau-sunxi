@@ -67,6 +67,45 @@ int cedarv_disp_convertMb2Yuv420(int width, int height, CEDARV_MEMORY y, CEDARV_
    return 1;
 }
 
+int cedarv_disp_convertMb2RGB(int width, int height, CEDARV_MEMORY y, CEDARV_MEMORY uv, CEDARV_MEMORY convY)
+{
+  unsigned long arg[4] = {0, 0, 0, 0};
+  __disp_scaler_para_t scaler_para;
+  int result; 
+  arg[1] = ioctl(fd, DISP_CMD_SCALER_REQUEST, (unsigned long) arg);
+  if(arg[1] == (unsigned long)-1) return 0;
+
+  memset(&scaler_para, 0, sizeof(__disp_scaler_para_t));
+  scaler_para.input_fb.addr[0] = cedarv_virt2phys(y);
+  scaler_para.input_fb.addr[1] = cedarv_virt2phys(uv);
+  scaler_para.input_fb.size.width = width;
+  scaler_para.input_fb.size.height = height;
+  scaler_para.input_fb.format = DISP_FORMAT_YUV420;
+  scaler_para.input_fb.seq = DISP_SEQ_UVUV;
+  scaler_para.input_fb.mode = DISP_MOD_MB_UV_COMBINED;
+  scaler_para.input_fb.br_swap = 0;
+  scaler_para.input_fb.cs_mode = DISP_BT601;
+  scaler_para.source_regn.x = 0;
+  scaler_para.source_regn.y = 0;
+  scaler_para.source_regn.width = width;
+  scaler_para.source_regn.height = height;
+  scaler_para.output_fb.addr[0] = cedarv_virt2phys(convY);
+  scaler_para.output_fb.size.width = width;
+  scaler_para.output_fb.size.height = height;
+  scaler_para.output_fb.format = DISP_FORMAT_RGB888;
+  scaler_para.output_fb.seq = DISP_SEQ_P3210;
+  scaler_para.output_fb.mode = DISP_MOD_INTERLEAVED;
+  scaler_para.output_fb.br_swap = 0;
+  scaler_para.output_fb.cs_mode = DISP_BT601;
+
+  arg[2] = (unsigned long) &scaler_para;
+  result = ioctl(fd, DISP_CMD_SCALER_EXECUTE, (unsigned long) arg);
+  if(result < 0)
+    printf("scaler execution failed=%d\n", errno);
+  ioctl(fd, DISP_CMD_SCALER_RELEASE, (unsigned long) arg);
+  return 1;
+}
+
 #if 0
 void veisp_setPicSize(int width, int height)
 {

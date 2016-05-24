@@ -13,19 +13,19 @@ typedef uint32_t vdpauSurfaceNV;
 #define MAX_NUM_TEXTURES	6
 typedef struct surface_nv_ctx_struct
 {
-  VdpVideoSurface 	surface;
-  enum VdpauNVState	vdpNvState;
-  uint32_t		target;
-  GLsizei		numTextureNames;
-  uint			textureNames[MAX_NUM_TEXTURES];
-  EGLImageKHR		eglImage[MAX_NUM_TEXTURES];
-  struct fbdev_pixmap 	cMemPixmap[MAX_NUM_TEXTURES];
+  enum HandleType       surfaceType;
+  VdpVideoSurface 	    surface;
+  enum VdpauNVState	    vdpNvState;
+  uint32_t              target;
+  GLsizei	            numTextureNames;
+  uint                  textureNames[MAX_NUM_TEXTURES];
+  EGLImageKHR           eglImage[MAX_NUM_TEXTURES];
+  struct fbdev_pixmap   cMemPixmap[MAX_NUM_TEXTURES];
   CEDARV_MEMORY         convY;
   CEDARV_MEMORY         convU;
   CEDARV_MEMORY         convV;
   uint32_t              conv_width;
   uint32_t              conv_height;
-
 } surface_nv_ctx_t;
 
 #endif

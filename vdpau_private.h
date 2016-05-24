@@ -37,6 +37,7 @@ typedef uint32_t VdpHandle;
 
 enum HandleType
 {
+   htype_none,
    htype_output,
    htype_video,
    htype_bitmap,
@@ -45,7 +46,8 @@ enum HandleType
    htype_decoder,
    htype_presentation,
    htype_presentation_target,
-   htype_nvidia_vdpau
+   htype_nvidia_vdpau,
+   htype_display_vdpau
 };
 
 enum VdpauNVState
@@ -84,7 +86,7 @@ typedef struct video_surface_ctx_struct
 	int plane_size;
 	void *decoder_private;
 	void (*decoder_private_free)(struct video_surface_ctx_struct *surface);
-        uint8_t frame_decoded;
+    uint8_t frame_decoded;
 } video_surface_ctx_t;
 
 typedef struct decoder_ctx_struct
@@ -113,10 +115,10 @@ typedef struct
 typedef struct
 {
 	queue_target_ctx_t *target;
-        VdpHandle target_hdl;
+    VdpHandle target_hdl;
 	VdpColor background;
 	device_ctx_t *device;
-        VdpHandle device_hdl;
+    VdpHandle device_hdl;
 } queue_ctx_t;
 
 typedef struct
@@ -188,6 +190,7 @@ void *handle_create(size_t size, VdpHandle *handle, enum HandleType type);
 void *handle_get(VdpHandle handle);
 void handle_destroy(VdpHandle handle);
 void handle_release(VdpHandle handle);
+enum HandleType handle_get_type(VdpHandle handle);
 
 VdpStatus vdp_imp_device_create_x11(Display *display, int screen, VdpDevice *device, VdpGetProcAddress **get_proc_address);
 VdpStatus vdp_device_destroy(VdpDevice device);
