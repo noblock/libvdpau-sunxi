@@ -237,7 +237,7 @@ void glVDPAUUnmapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *sur
   }
 }
 
-VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, cdRect_t srcRect, cdRect_t dstRect, cdRect_t fbRect)
+VdpStatus glVDPAUConfigureSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, cdRect_t srcRect, cdRect_t dstRect)
 {
   int error;
   surface_display_ctx_t *nv  = handle_get(surface);
@@ -247,9 +247,19 @@ VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int 
   assert(vs);
 
   __disp_layer_info_t layer_info;
-  memset(&layer_info, 0, sizeof(layer_info));
+  uint32_t args[4] = { 
+    0, 
+    hLayer, 
+    (unsigned long)(&layer_info), 
+     0 
+  };
+  error = ioctl(dispFd, DISP_CMD_LAYER_GET_PARA, args);
+  if(error < 0)
+  {
+    printf("get para failed\n");
+  }
   layer_info.pipe = 1;
-#if 1
+#if 0
   layer_info.alpha_en = 1;
   layer_info.alpha_val = 0xff;
 #endif
@@ -280,18 +290,18 @@ VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int 
   }
 	
   layer_info.fb.br_swap = 0;
-  layer_info.fb.addr[0] = cedarv_virt2phys(vs->dataY) + 0x40000000;
-  layer_info.fb.addr[1] = cedarv_virt2phys(vs->dataU) + 0x40000000;
+  layer_info.fb.addr[0] = cedarv_virt2phys(vs->dataY);
+  layer_info.fb.addr[1] = cedarv_virt2phys(vs->dataU);
   if( cedarv_isValid(vs->dataV))
-    layer_info.fb.addr[2] = cedarv_virt2phys(vs->dataV) + 0x40000000;
+    layer_info.fb.addr[2] = cedarv_virt2phys(vs->dataV);
 
   layer_info.fb.cs_mode = DISP_BT709;
-  layer_info.fb.size.width = fbRect.width;
-  layer_info.fb.size.height = fbRect.height;
-  layer_info.src_win.x = 0; //srcRect.x;
-  layer_info.src_win.y = 0; //srcRect.y;
-  layer_info.src_win.width = vs->width; //srcRect.width;
-  layer_info.src_win.height = vs->height; //srcRect.height;
+  layer_info.fb.size.width = vs->width;
+  layer_info.fb.size.height = vs->height;
+  layer_info.src_win.x = srcRect.x;
+  layer_info.src_win.y = srcRect.y;
+  layer_info.src_win.width = srcRect.width;
+  layer_info.src_win.height = srcRect.height;
   layer_info.scn_win.x = dstRect.x;
   layer_info.scn_win.y = dstRect.y;
   layer_info.scn_win.width = dstRect.width;
@@ -307,13 +317,6 @@ VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int 
     layer_info.scn_win.height -= cutoff;
   }
 
-
-  uint32_t args[4] = { 
-    0, 
-    hLayer, 
-    (unsigned long)(&layer_info), 
-    0 
-  };
   error = ioctl(dispFd, DISP_CMD_LAYER_SET_PARA, args);
   if(error < 0)
   {
@@ -324,19 +327,13 @@ VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int 
   if(layer_opened == 0)
   {
     layer_opened = 1;
-#if 1
+
     error = ioctl(dispFd, DISP_CMD_LAYER_OPEN, args);
     if(error < 0)
     {
       printf("layer open failed, fd=%d, errno=%d\n", dispFd, errno);
     }
-      // Note: might be more reliable (but slower and problematic when there
-      // are driver issues and the GET functions return wrong values) to query the
-      // old values instead of relying on our internal csc_change.
-      // Since the driver calculates a matrix out of these values after each
-      // set doing this unconditionally is costly.
-#endif
-  args[2] = 0;
+    args[2] = 0;
     error = ioctl(dispFd, DISP_CMD_VIDEO_START, args);
     if(error < 0)
     {
@@ -345,4 +342,54 @@ VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int 
   }
   handle_release(nv->surface);
   handle_release(surface);
+}
+
+VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, int frameId)
+{
+  int error;
+  surface_display_ctx_t *nv  = handle_get(surface);
+  assert(nv);
+   
+  video_surface_ctx_t *vs = handle_get(nv->surface);
+  assert(vs);
+
+  __disp_video_fb_t fb_info;
+  memset(&fb_info, 0, sizeof(fb_info));
+	
+  fb_info.id = frameId;
+  fb_info.addr[0] = cedarv_virt2phys(vs->dataY);
+  fb_info.addr[1] = cedarv_virt2phys(vs->dataU);
+  if( cedarv_isValid(vs->dataV))
+    fb_info.addr[2] = cedarv_virt2phys(vs->dataV);
+
+  uint32_t args[4] = { 
+    0, 
+    hLayer, 
+    (unsigned long)(&fb_info), 
+     0 
+  };
+  error = ioctl(dispFd, DISP_CMD_VIDEO_SET_FB, args);
+  if(error < 0)
+  {
+    printf("set para failed\n");
+  }
+
+  handle_release(nv->surface);
+  handle_release(surface);
+}
+
+int glVDPAUGetFrameIdCedar(int hLayer, int dispFd)
+{
+  uint32_t args[4] = {
+    0, 
+    hLayer, 
+    0, 
+    0 
+  };
+  int frameId = ioctl(dispFd, DISP_CMD_VIDEO_GET_FRAME_ID, args);
+  if(frameId < 0)
+  {
+    printf("get frame id failed\n");
+  }
+  return frameId;
 }
