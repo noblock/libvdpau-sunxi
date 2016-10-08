@@ -12,7 +12,7 @@ NV_TARGET = libvdpau_nv_sunxi.so.1
 NV_SRC = opengl_nv.c
 
 CFLAGS ?= -Wall -O0 -g 
-LDFLAGS =
+LDFLAGS ?=
 LIBS = -lrt -lm -lpthread
 LIBS_EGL = -lEGL
 LIBS_GLES2 = -lGLESv2
