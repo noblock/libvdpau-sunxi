@@ -53,6 +53,8 @@ void* cedarv_getPointer(CEDARV_MEMORY mem);
 size_t cedarv_getSize(CEDARV_MEMORY mem);
 unsigned char cedarv_byteAccess(CEDARV_MEMORY mem, size_t offset);
 void cedarv_setBufferInvalid(CEDARV_MEMORY mem);
+int cedarv_allocateEngine(int engine);
+int cedarv_freeEngine();
 
 static inline void writel(uint32_t val, void *addr)
 {

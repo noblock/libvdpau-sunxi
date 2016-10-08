@@ -54,12 +54,14 @@ VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32
     case VDP_DECODER_PROFILE_MPEG1:
     case VDP_DECODER_PROFILE_MPEG2_SIMPLE:
     case VDP_DECODER_PROFILE_MPEG2_MAIN:
+        cedarv_allocateEngine(CEDARV_ENGINE_MPEG);
         ret = new_decoder_mpeg12(dec);
         break;
 
     case VDP_DECODER_PROFILE_H264_BASELINE:
     case VDP_DECODER_PROFILE_H264_MAIN:
     case VDP_DECODER_PROFILE_H264_HIGH:
+        cedarv_allocateEngine(CEDARV_ENGINE_H264);
         ret = new_decoder_h264(dec);
         break;
 
@@ -73,12 +75,14 @@ VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32
     case VDP_DECODER_PROFILE_DIVX5_MOBILE:
     case VDP_DECODER_PROFILE_DIVX5_HOME_THEATER:
     case VDP_DECODER_PROFILE_DIVX5_HD_1080P:
+        cedarv_allocateEngine(CEDARV_ENGINE_MPEG);
         ret = new_decoder_mpeg4(dec);
         break;
     case VDP_DECODER_PROFILE_DIVX3_HD_1080P:
     case VDP_DECODER_PROFILE_DIVX3_QMOBILE:
     case VDP_DECODER_PROFILE_DIVX3_MOBILE:
     case VDP_DECODER_PROFILE_DIVX3_HOME_THEATER:
+        cedarv_allocateEngine(CEDARV_ENGINE_MPEG);
         ret = new_decoder_msmpeg4(dec);
         break;
     default:
@@ -97,6 +101,7 @@ err_handle:
         dec->private_free(dec);
 err_decoder:
     cedarv_free(dec->data);
+    cedarv_freeEngine();
 err_data:
     handle_destroy(*decoder);
 err_ctx:
@@ -115,6 +120,7 @@ VdpStatus vdp_decoder_destroy(VdpDecoder decoder)
         dec->private_free(dec);
 
     cedarv_free(dec->data);
+    cedarv_freeEngine();
 
     handle_release(decoder);
     handle_destroy(decoder);

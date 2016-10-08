@@ -88,16 +88,44 @@ static struct ve_dev
 	pthread_rwlock_t memory_lock;
 #endif
 	pthread_mutex_t device_lock;
-        int initialized;
-        unsigned int refCnt;
+    int initialized;
+    unsigned int refCnt;
+    int reservedEngine;
 } ve = { .fd = -1, 
 #if USE_UMP == 0
 	.memory_lock = PTHREAD_RWLOCK_INITIALIZER, 
 #endif
         .device_lock = PTHREAD_MUTEX_INITIALIZER,
         .initialized = 0,
-        .refCnt = 0
+        .refCnt = 0,
+        .reservedEngine = -1,
 };
+
+int cedarv_allocateEngine(int engine)
+{
+  int status = 0;
+  
+  if (pthread_mutex_lock(&ve.device_lock))
+    return 0;
+  if(ve.reservedEngine == -1)
+  {
+    ve.reservedEngine = engine;
+    status = 1;
+  }
+  pthread_mutex_unlock(&ve.device_lock);
+  return status;
+}
+
+int cedarv_freeEngine()
+{
+  int status = 1;
+  
+  if (pthread_mutex_lock(&ve.device_lock))
+    return -1;
+  ve.reservedEngine = -1;
+  pthread_mutex_unlock(&ve.device_lock);
+  return status;
+}
 
 int cedarv_open(void)
 {
