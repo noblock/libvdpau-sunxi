@@ -28,4 +28,10 @@ typedef struct cdRect
   uint32_t       width;
   uint32_t       height;
 } cdRect_t;
+
+#define CS_MODE_BT709   1
+#define CS_MODE_BT601   2
+#define CS_MODE_YCC     3
+#define CS_MODE_XVYCC   4
+
 #endif

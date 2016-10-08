@@ -40,6 +40,7 @@
 #include <errno.h>
 
 static void (*Log)(int loglevel, const char *format, ...);
+static int layer_opened = 0;
 
 enum col_plane
 {
@@ -52,6 +53,7 @@ enum col_plane
 void glVDPAUUnmapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *surfaces);
 void glVDPAUInitCedar(const void *vdpDevice, const void *getProcAddress, void (*_Log)(int loglevel, const char *format, ...));
 void glVDPAUFiniCedar(void);
+void glVDPAUCloseVideoLayerCedar(int hLayer, int dispFd);
 vdpauSurfaceCedar glVDPAURegisterVideoSurfaceCedar (const void *vdpSurface);
 vdpauSurfaceCedar glVDPAURegisterOutputSurfaceCedar (const void *vdpSurface);
 int glVDPAUIsSurfaceCedar (vdpauSurfaceCedar surface);
@@ -75,9 +77,32 @@ void glVDPAUInitCedar(const void *vdpDevice, const void *getProcAddress,
   cedarv_disp_init();
 }
 
-void glVDPAUFiniCedar(void)
+void glVDPAUCloseVideoLayerCedar(int hLayer, int dispFd)
 {
-   cedarv_disp_close();
+  uint32_t args[4] = { 
+    0, 
+    hLayer, 
+    0, 
+    0 
+  };
+  int error = ioctl(dispFd, DISP_CMD_VIDEO_STOP, args);
+  if(error < 0)
+  {
+    printf("video start failed, fd=%d, errno=%d\n", dispFd, errno);
+  }
+
+  args[2] = 0;
+  error = ioctl(dispFd, DISP_CMD_LAYER_CLOSE, args);
+  if(error < 0)
+  {
+    printf("layer open failed, fd=%d, errno=%d\n", dispFd, errno);
+  }
+  layer_opened = 0;
+}
+
+void glVDPAUFiniCedar()
+{
+  cedarv_disp_close();
 }
 
 vdpauSurfaceCedar glVDPAURegisterVideoSurfaceCedar (const void *vdpSurface)
@@ -236,15 +261,53 @@ void glVDPAUUnmapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *sur
     handle_release(surfaces[j]);
   }
 }
-
-VdpStatus glVDPAUConfigureSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, cdRect_t srcRect, cdRect_t dstRect)
+VdpStatus glVDPAUGetVideoFrameConfig(vdpauSurfaceCedar surface, int *srcFormat, void** addrY, void** addrU, void** addrV, int *height, int * width)
 {
   int error;
   surface_display_ctx_t *nv  = handle_get(surface);
-  assert(nv);
+  if(! nv)
+  {
+    return VDP_STATUS_INVALID_HANDLE;
+  }
+
+  video_surface_ctx_t *vs = handle_get(nv->surface);
+  if(! vs)
+  {
+    handle_release(surface);
+    return VDP_STATUS_INVALID_HANDLE;
+  }
+
+  *srcFormat = vs->source_format;
+  *addrY = cedarv_virt2phys(vs->dataY);
+  *addrU = cedarv_virt2phys(vs->dataU);
+  if( cedarv_isValid(vs->dataV))
+    *addrV = cedarv_virt2phys(vs->dataV);
+  else
+    *addrV = NULL;
+  
+  *height = vs->height;
+  *width = vs->width;
+
+  handle_release(nv->surface);
+  handle_release(surface);
+}
+ 
+VdpStatus glVDPAUConfigureSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, 
+                                       cdRect_t srcRect, cdRect_t dstRect, int cs_mode)
+{
+  int error;
+  surface_display_ctx_t *nv  = handle_get(surface);
+  if(! nv)
+  {
+    return VDP_STATUS_INVALID_HANDLE;
+  }
    
   video_surface_ctx_t *vs = handle_get(nv->surface);
-  assert(vs);
+  if(! vs)
+  {
+    handle_release(surface);
+    return VDP_STATUS_INVALID_HANDLE;
+  }
 
   __disp_layer_info_t layer_info;
   uint32_t args[4] = { 
@@ -295,7 +358,7 @@ VdpStatus glVDPAUConfigureSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, in
   if( cedarv_isValid(vs->dataV))
     layer_info.fb.addr[2] = cedarv_virt2phys(vs->dataV);
 
-  layer_info.fb.cs_mode = DISP_BT709;
+  layer_info.fb.cs_mode = DISP_BT709; //cs_mode
   layer_info.fb.size.width = vs->width;
   layer_info.fb.size.height = vs->height;
   layer_info.src_win.x = srcRect.x;
@@ -323,7 +386,6 @@ VdpStatus glVDPAUConfigureSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, in
     printf("set para failed\n");
   }
 
-  static int layer_opened = 0;
   if(layer_opened == 0)
   {
     layer_opened = 1;
@@ -344,14 +406,22 @@ VdpStatus glVDPAUConfigureSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, in
   handle_release(surface);
 }
 
-VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, int frameId)
+VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int dispFd, int frameId, 
+                                     int interlace, int top_field)
 {
   int error;
   surface_display_ctx_t *nv  = handle_get(surface);
-  assert(nv);
+  if(! nv )
+  {
+    return VDP_STATUS_INVALID_HANDLE;
+  }
    
   video_surface_ctx_t *vs = handle_get(nv->surface);
-  assert(vs);
+  if(! vs)
+  {
+    handle_release(surface);
+    return VDP_STATUS_INVALID_HANDLE;
+  }
 
   __disp_video_fb_t fb_info;
   memset(&fb_info, 0, sizeof(fb_info));
@@ -361,6 +431,8 @@ VdpStatus glVDPAUPresentSurfaceCedar(vdpauSurfaceCedar surface, int hLayer, int 
   fb_info.addr[1] = cedarv_virt2phys(vs->dataU);
   if( cedarv_isValid(vs->dataV))
     fb_info.addr[2] = cedarv_virt2phys(vs->dataV);
+  fb_info.interlace = interlace;
+  fb_info.top_field_first = top_field;
 
   uint32_t args[4] = { 
     0, 
