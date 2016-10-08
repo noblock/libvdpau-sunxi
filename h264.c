@@ -701,7 +701,7 @@ static void fill_frame_lists(h264_context_t *c)
                     (rf->bottom_is_reference ? PIC_BOTTOM_FIELD : 0);
 
 				frame_list[surface_p->pos] = &c->ref_pic[c->ref_count];
-				c->ref_count++;
+                c->ref_count = ++c->ref_count & 0xf;
                 handle_release(rf->surface);
             }
 		}
