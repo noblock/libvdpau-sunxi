@@ -173,8 +173,9 @@ void veisp_setScalerFactor()
   uint32_t scale = (0x100 << 12) | (0x100);
   writel(scale, cedarv_regs + CEDARV_ISP_SCALER_FACTOR);
 }
+#endif
 
-void ConvertToNv21Y(char* pSrc, char* pDst, int nWidth, int nHeight)
+void cedarv_sw_convertToNv21Y(char* pSrc, char* pDst, int nWidth, int nHeight)
 {
    int i = 0;
    int j = 0;
@@ -212,7 +213,7 @@ void ConvertToNv21Y(char* pSrc, char* pDst, int nWidth, int nHeight)
    }
    
 }
-void ConvertToNv21C(char* pSrc, char* pDst, int nWidth, int nHeight)
+void cedarv_sw_convertToNv21C(char* pSrc, char* pDst, int nWidth, int nHeight)
 {
    int i = 0;
    int j = 0;
@@ -258,7 +259,7 @@ void ConvertToNv21C(char* pSrc, char* pDst, int nWidth, int nHeight)
    }
 }
 
-void ConvertMb32420ToNv21Y(char* pSrc,char* pDst,int nWidth, int nHeight)
+void cedarv_sw_convertMb32420ToNv21Y(char* pSrc,char* pDst,int nWidth, int nHeight)
 {
 	int nMbWidth = 0;
 	int nMbHeight = 0;
@@ -355,7 +356,7 @@ void ConvertMb32420ToNv21Y(char* pSrc,char* pDst,int nWidth, int nHeight)
 }
 
 
-void ConvertMb32420ToNv21C(char* pSrc,char* pDst,int nPicWidth, int nPicHeight)
+void cedarv_sw_convertMb32420ToNv21C(char* pSrc,char* pDst,int nPicWidth, int nPicHeight)
 {
 	int nMbWidth = 0;
 	int nMbHeight = 0;
@@ -430,7 +431,7 @@ void ConvertMb32420ToNv21C(char* pSrc,char* pDst,int nPicWidth, int nPicHeight)
     }
 }
 
-void ConvertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPicWidth, int nPicHeight)
+void cedarv_sw_convertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPicWidth, int nPicHeight)
 {
 	int nMbWidth = 0;
 	int nMbHeight = 0;
@@ -546,7 +547,7 @@ void ConvertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPicWidth, int
 }
 
 
-void ConvertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPicWidth, int nPicHeight)
+void cedarv_sw_convertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPicWidth, int nPicHeight)
 {
 	int nMbWidth = 0;
 	int nMbHeight = 0;
@@ -661,5 +662,3 @@ void ConvertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPicWidth, int
     	}
     }
 }
-
-#endif
