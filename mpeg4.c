@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-//#define TIMEMEAS 1
+#define TIMEMEAS 1
 
 #define USE_ISP_HW 0
 #define USE_XY_CONV 0
@@ -1203,6 +1203,7 @@ static int mpeg4_process_macroblock(bitstream *bs, decoder_ctx_t *decoder)
     } while(bits_left(bs) && (nextbits_bytealigned(bs, 23) != 0) &&
             nextbits_bytealigned(bs, marker_length) != 1);
     h->num_gop_mbas = mba;
+    return 0;
 }
 
 static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info, decoder_ctx_t *decoder)
@@ -1317,6 +1318,7 @@ static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info
                 if(vol->video_object_layer_shape != RECT_SHAPE && 
                         (h->vop_coding_type != VOP_I)) {
                     int vop_shape_coding_type = get_bits(bs, 1);
+		    (void)vop_shape_coding_type;
                 }
                 //motion_shape_texture()
                 //mpeg4_process_macroblock(bs, decoder);
@@ -1342,35 +1344,44 @@ static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info
                     int load_backward_shape = get_bits(bs, 1);
                     if(load_backward_shape) {
                         int backward_shape_width = get_bits(bs, 13);
+			(void)backward_shape_width;
                         //marker_bits
                         get_bits(bs,1);
                         int backward_shape_height = get_bits(bs, 13);
+			(void)backward_shape_height;
                         //marker_bits
                         get_bits(bs,1);
                         int backward_shape_horizontal_mc_spatial_ref = get_bits(bs, 13);
+			(void)backward_shape_horizontal_mc_spatial_ref;
                         //marker_bits
                         get_bits(bs,1);
                         int backward_shape_vertical_mc_spatial_ref = get_bits(bs, 13);
+			(void)backward_shape_vertical_mc_spatial_ref;
                         //marker_bits
                         get_bits(bs,1);
                         //backward_shape()
                         int load_forward_shape = get_bits(bs, 1);
                         if(load_forward_shape) {
                             int forward_shape_width = get_bits(bs, 13);
+			    (void)forward_shape_width;
                             //marker_bits
                             get_bits(bs,1);
                             int forward_shape_height = get_bits(bs, 13);
+			    (void)forward_shape_height;
                             //marker_bits
                             get_bits(bs,1);
                             int forward_shape_horizontal_mc_spatial_ref = get_bits(bs,13);
+			    (void)forward_shape_horizontal_mc_spatial_ref;
                             //marker_bits
                             get_bits(bs,1);
                             int forward_shape_vertical_mc_spatial_ref = get_bits(bs,13);
+			    (void)forward_shape_vertical_mc_spatial_ref;
                             //forward_shape()
                         }
                     }
                 }
                 int ref_select_code = get_bits(bs, 2);
+		(void)ref_select_code;
                 //combined_motion_shape_texture() 
                 //mpeg4_process_macroblock(bs, decoder);
             }
@@ -1415,6 +1426,7 @@ int mpeg4_decode_packet_header(bitstream *gb, VdpPictureInfoMPEG4Part2 const *in
     if (vol->video_object_layer_shape != RECT_SHAPE) {
         header_extension = get_bits(gb,1);
         // FIXME more stuff here
+	printf("fixme: more stuff to read here");
     }
 
     mb_num = get_bits(gb, mb_num_bits);
@@ -1545,7 +1557,9 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 	int i;
 	void *cedarv_regs = cedarv_get_regs();
 	bitstream bs = { .data = cedarv_getPointer(decoder->data), .length = len, .bitpos = 0 };
-    
+
+        output->source_format = INTERNAL_YCBCR_FORMAT;
+ 
 	while (find_startcode(&bs))
 	{
             startcode = get_bits(&bs, 8);
@@ -1581,7 +1595,7 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                    assert(cedarv_isValid(forward->dataY));
                    assert(cedarv_isValid(forward->dataU));
                    writel(cedarv_virt2phys(forward->dataY), cedarv_regs + CEDARV_MPEG_FWD_LUMA);
-                   writel(cedarv_virt2phys(forward->dataU)/* + forward->plane_size*/, cedarv_regs + CEDARV_MPEG_FWD_CHROMA);
+                   writel(cedarv_virt2phys(forward->dataU), cedarv_regs + CEDARV_MPEG_FWD_CHROMA);
                    handle_release(info->forward_reference);
                 }
             }
@@ -1593,7 +1607,7 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                    assert(cedarv_isValid(backward->dataY));
                    assert(cedarv_isValid(backward->dataU));
                    writel(cedarv_virt2phys(backward->dataY), cedarv_regs + CEDARV_MPEG_BACK_LUMA);
-                   writel(cedarv_virt2phys(backward->dataU)/* + backward->plane_size*/, cedarv_regs + CEDARV_MPEG_BACK_CHROMA);
+                   writel(cedarv_virt2phys(backward->dataU), cedarv_regs + CEDARV_MPEG_BACK_CHROMA);
                    handle_release(info->backward_reference);
                 }
             }
@@ -1633,9 +1647,15 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 	    assert(cedarv_isValid(output->dataY));
 	    assert(cedarv_isValid(output->dataU));
             writel(cedarv_virt2phys(output->dataY), cedarv_regs + CEDARV_MPEG_REC_LUMA);
-            writel(cedarv_virt2phys(output->dataU)/* + output->plane_size*/, cedarv_regs + CEDARV_MPEG_REC_CHROMA);
+            writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_REC_CHROMA);
             writel(cedarv_virt2phys(output->dataY), cedarv_regs + CEDARV_MPEG_ROT_LUMA);
-            writel(cedarv_virt2phys(output->dataU)/* + output->plane_size*/, cedarv_regs + CEDARV_MPEG_ROT_CHROMA);
+            writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_ROT_CHROMA);
+
+            if(cedarv_get_version() >= 1680)
+            {
+                writel(OUTPUT_FORMAT_NV12 | EXTRA_OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
+                output->source_format = VDP_YCBCR_FORMAT_NV12;
+            }
 
             uint32_t rotscale = 0;
             //bit 0-3: rotate_angle
@@ -1651,6 +1671,8 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             const int no_rotate = 6;
             rotscale |= 0x40620000;
             writel(rotscale, cedarv_regs + CEDARV_MPEG_SDROT_CTRL);
+            if (cedarv_get_version() >= 0x1680)
+                  writel((0x1 << 30) | (0x1 << 28) , cedarv_regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
 
                         // ??
             uint32_t cedarv_control = 0;
@@ -1665,7 +1687,7 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             //if(p-frame && 
             cedarv_control |= (decoder_p->vop_header.vop_coding_type == VOP_P ? 0x1 : 0x0) << 12;
             cedarv_control |= (1 << 8);
-            cedarv_control |= (1 << 7);
+            cedarv_control |= ((cedarv_get_version() < 0x1680) << 7);
             cedarv_control |= (1 << 4);
             cedarv_control |= (1 << 3);
             //cedarv_control = 0x80084198;
@@ -1794,7 +1816,7 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 uint32_t error_disable = 1;
                 mpeg_trigger |= vbv_size << 8;
                 mpeg_trigger |= 0xd;
-                mpeg_trigger |= (error_disable << 31);
+                mpeg_trigger |= CEDARV_MPEG_TRIG_ERROR_DISABLE(error_disable);
                 mpeg_trigger |= (0x4000000);
 
                 writel(mpeg_trigger, cedarv_regs + CEDARV_MPEG_TRIGGER);

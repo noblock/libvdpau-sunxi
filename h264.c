@@ -23,6 +23,7 @@
 #include "vdpau_private.h"
 #include "ve.h"
 #include <time.h>
+#include <stdio.h>
 
 //#define TIME_MEAS 1
 #define FIELDINTRABUFSIZE     0x20000
@@ -285,6 +286,7 @@ static void ref_pic_list_modification(h264_context_t *c)
 				{
 					VDPAU_DBG("NOT IMPLEMENTED: modification_of_pic_nums_idc == 2");
 					unsigned int long_term_pic_num = get_ue(cedarv_regs);
+					(void)long_term_pic_num;
 				}
 			} while (modification_of_pic_nums_idc != 3 && --backout > 0);
 		}
@@ -303,10 +305,12 @@ static void ref_pic_list_modification(h264_context_t *c)
 				if (modification_of_pic_nums_idc == 0 || modification_of_pic_nums_idc == 1)
 				{
 					unsigned int abs_diff_pic_num_minus1 = get_ue(cedarv_regs);
+					(void)abs_diff_pic_num_minus1;
 				}
 				else if (modification_of_pic_nums_idc == 2)
 				{
 					unsigned int long_term_pic_num = get_ue(cedarv_regs);
+					(void)long_term_pic_num;
 				}
 			} while (modification_of_pic_nums_idc != 3);
 		}
@@ -781,6 +785,8 @@ static VdpStatus h264_decode(decoder_ctx_t *decoder, VdpPictureInfo const *_info
 	VdpPictureInfoH264 const *info = (VdpPictureInfoH264 const *)_info;
     unsigned long value = 0;
     h264_video_private_t *output_p;
+
+        output->source_format = INTERNAL_YCBCR_FORMAT;
     
 	h264_context_t *c = calloc(1, sizeof(h264_context_t));
 	c->picture_width_in_mbs_minus1 = (decoder->width - 1) / 16;
@@ -817,8 +823,8 @@ static VdpStatus h264_decode(decoder_ctx_t *decoder, VdpPictureInfo const *_info
     void* cedarv_regs = cedarv_get(CEDARV_ENGINE_H264, (decoder->width >= 2048 ? 0x1 : 0x0) << 21);
 
     // activate H264 engine
-    writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x1
-    | (decoder->width >= 2048 ? (0x1 << 21) : 0x0), cedarv_regs + CEDARV_CTRL);
+    // writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x1
+    // | ((decoder->width >= 2048 ? 0x1 : 0x0) << 21), cedarv_regs + CEDARV_CTRL);
 
 
 	// some buffers
@@ -851,6 +857,19 @@ static VdpStatus h264_decode(decoder_ctx_t *decoder, VdpPictureInfo const *_info
 
 	// sdctrl
 	writel(0x00000000, cedarv_regs + CEDARV_H264_SDROT_CTRL);
+	{
+		writel(OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
+		output->source_format = VDP_YCBCR_FORMAT_NV12;
+
+	}
+/*
+        if (cedarv_get_version() >= 0x1680)
+        {
+                writel(cedarv_virt2phys(c->output->dataY), c->regs + CEDARV_H264_SDROT_LUMA);
+                writel(cedarv_virt2phys(c->output->dataU), c->regs + CEDARV_H264_SDROT_CHROMA);
+                writel((0x2 << 30) | (0x1 << 28) | (cedarv_getSize(c->output->dataU) / 2), c->regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
+        }
+*/
 
 	fill_frame_lists(c);
     
@@ -1040,7 +1059,7 @@ VdpStatus new_decoder_h264(decoder_ctx_t *decoder)
         return VDP_STATUS_RESOURCES;
       }
       cedarv_memset(decoder_p->deBlkDramBuf, 0, len);
-      cedarv_flush_cache(decoder_p->mbFieldIntraBuf, len);
+      cedarv_flush_cache(decoder_p->deBlkDramBuf, len);
 
       len = ((decoder->width + 15) / 16 + 63) * 16 * 5;
       decoder_p->intraPredDramBuf = cedarv_malloc(len);
