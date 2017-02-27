@@ -86,6 +86,7 @@ static int TestEGLError(const char* pszLocation){
 VdpStatus vdp_device_opengles_nv_open(EGLDisplay _eglDisplay, VdpGetProcAddress **get_proc_address)
 {
   eglDisplay = _eglDisplay;
+  return VDP_STATUS_OK;
 }
 
 void glVDPAUInitNV(const void *vdpDevice, const void *getProcAddress, EGLContext shared_context,
@@ -265,6 +266,7 @@ vdpauSurfaceNV glVDPAURegisterOutputSurfaceNV (const void *vdpSurface, uint32_t 
 
 int glVDPAUIsSurfaceNV (vdpauSurfaceNV surface)
 {
+   return VDP_STATUS_OK;
 }
 
 void glVDPAUUnregisterSurfaceNV (vdpauSurfaceNV surface)

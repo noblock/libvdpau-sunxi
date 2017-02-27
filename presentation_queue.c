@@ -26,6 +26,7 @@
 #include "sunxi_disp_ioctl.h"
 #include "ve.h"
 #include <errno.h>
+#include <stdio.h>
 
 uint64_t get_time(void)
 {
@@ -375,7 +376,7 @@ VdpStatus vdp_presentation_queue_display(VdpPresentationQueue presentation_queue
 
 	//printf("%s: p_q=%d,o_s=%d\n", __FUNCTION__, presentation_queue, surface);
 
-	Window c;
+	//Window c;
 	int x=0,y=0;
 	//XTranslateCoordinates(q->device->display, q->target->drawable, RootWindow(q->device->display, q->device->screen), 0, 0, &x, &y, &c);
 	//XClearWindow(q->device->display, q->target->drawable);
