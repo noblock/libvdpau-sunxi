@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef __VE_H__
-#define __VE_H__
+#ifndef __CEDARV_H__
+#define __CEDARV_H__
 
 #include <stdint.h>
 
@@ -74,12 +74,19 @@ static inline void writeb(uint8_t val, void *addr)
 
 #define CEDARV_ENGINE_MPEG			0x0
 #define CEDARV_ENGINE_H264			0x1
+#define CEDARV_ENGINE_HEVC			0x4
 
 #define CEDARV_CTRL				0x000
-#define CEDARV_VERSION			0x0f0
-#define CEDARV_IPD_DBLK_BUF_CTRL    0x050
-#define CEDARV_IPD_BUF              0x054
-#define CEDARV_DBLK_BUF             0x05c
+#define CEDARV_TIMEOUT				0x00c
+#define CEDARV_IPD_DBLK_BUF_CTRL    		0x050
+#define CEDARV_IPD_BUF              		0x054
+#define CEDARV_DBLK_BUF             		0x05c
+#define CEDARV_OUTPUT_CHROMA_OFFSET             0x0c4
+#define CEDARV_OUTPUT_STRIDE                    0x0c8
+#define CEDARV_EXTRA_OUT_STRIDE			0x0cc
+#define CEDARV_EXTRA_OUT_FMT_OFFSET             0x0e8
+#define CEDARV_OUTPUT_FORMAT                    0x0ec
+#define CEDARV_VERSION                          0x0f0
 
 
 #define CEDARV_MPEG_PIC_HDR			0x100
@@ -148,6 +155,9 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_H264_VLD_LEN			0x238
 #define CEDARV_H264_VLD_END			0x23c
 #define CEDARV_H264_SDROT_CTRL		0x240
+#define CEDARV_H264_SDROT_LUMA                0x244
+#define CEDARV_H264_SDROT_CHROMA              0x248
+
 #define CEDARV_H264_OUTPUT_FRAME_IDX	0x24c
 #define CEDARV_H264_FIELD_INTRA_INFO_BUF	0x250
 #define CEDARV_H264_NEIGHBOR_INFO_BUF		0x254
@@ -162,6 +172,48 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_SRAM_H264_REF_LIST0		0x640
 #define CEDARV_SRAM_H264_REF_LIST1		0x664
 #define CEDARV_SRAM_H264_SCALING_LISTS	0x800
+
+#define CEDARV_HEVC_NAL_HDR                 0x500
+#define CEDARV_HEVC_SPS                     0x504
+#define CEDARV_HEVC_PIC_SIZE                0x508
+#define CEDARV_HEVC_PCM_HDR                 0x50c
+#define CEDARV_HEVC_PPS0                    0x510
+#define CEDARV_HEVC_PPS1                    0x514
+#define CEDARV_HEVC_SCALING_LIST_CTRL       0x518
+#define CEDARV_HEVC_SLICE_HDR0              0x520
+#define CEDARV_HEVC_SLICE_HDR1              0x524
+#define CEDARV_HEVC_SLICE_HDR2              0x528
+#define CEDARV_HEVC_CTB_ADDR                0x52c
+#define CEDARV_HEVC_CTRL                    0x530
+#define CEDARV_HEVC_TRIG                    0x534
+#define CEDARV_HEVC_STATUS                  0x538
+#define CEDARV_HEVC_CTU_NUM                 0x53c
+#define CEDARV_HEVC_BITS_ADDR               0x540
+#define CEDARV_HEVC_BITS_OFFSET             0x544
+#define CEDARV_HEVC_BITS_LEN                0x548
+#define CEDARV_HEVC_BITS_END_ADDR           0x54c
+#define CEDARV_HEVC_EXTRA_OUT_CTRL          0x550
+#define CEDARV_HEVC_EXTRA_OUT_LUMA_ADDR     0x554
+#define CEDARV_HEVC_EXTRA_OUT_CHROMA_ADDR   0x558
+#define CEDARV_HEVC_REC_BUF_IDX             0x55c
+#define CEDARV_HEVC_NEIGHBOR_INFO_ADDR      0x560
+#define CEDARV_HEVC_TILE_LIST_ADDR          0x564
+#define CEDARV_HEVC_TILE_START_CTB          0x568
+#define CEDARV_HEVC_TILE_END_CTB            0x56c
+#define CEDARV_HEVC_SCALING_LIST_DC_COEF0   0x578
+#define CEDARV_HEVC_SCALING_LIST_DC_COEF1   0x57c
+#define CEDARV_HEVC_BITS_DATA               0x5dc
+#define CEDARV_HEVC_SRAM_ADDR               0x5e0
+#define CEDARV_HEVC_SRAM_DATA               0x5e4
+
+#define CEDARV_SRAM_HEVC_PRED_WEIGHT_LUMA_L0        0x000
+#define CEDARV_SRAM_HEVC_PRED_WEIGHT_CHROMA_L0      0x020
+#define CEDARV_SRAM_HEVC_PRED_WEIGHT_LUMA_L1        0x060
+#define CEDARV_SRAM_HEVC_PRED_WEIGHT_CHROMA_L1      0x080
+#define CEDARV_SRAM_HEVC_PIC_LIST                   0x400
+#define CEDARV_SRAM_HEVC_SCALING_LISTS              0x800
+#define CEDARV_SRAM_HEVC_REF_PIC_LIST0              0xc00
+#define CEDARV_SRAM_HEVC_REF_PIC_LIST1              0xc10
 
 #define CEDARV_ISP_PIC_SIZE 		0x0a00 	//ISP source picture size in macroblocks (16x16)
 #define CEDARV_ISP_PIC_STRIDE 		0x0a04 	//ISP source picture stride
@@ -199,11 +251,46 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE_BIT  31
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE_SIZE  0x1
 
-#define CEDARV_MPEG_TRIG_ERROR_DISABLE(er_dis)      ((err_dis & CEDARV_MPEG_TRIG_ERROR_DISABLE_SIZE) << CEDARV_MPEG_TRIG_ERROR_DISABLE_BIT)
+#define CEDARV_MPEG_TRIG_ERROR_DISABLE(err_dis)      ((err_dis & CEDARV_MPEG_TRIG_ERROR_DISABLE_SIZE) << CEDARV_MPEG_TRIG_ERROR_DISABLE_BIT)
 
 //H264 Status values
 #define VLD_BUSY                (1 << 8)
 #define VLD_DATA_REQ_INTERRUPT  (1 << 2)
 
+//CEDARV_OUTPUT_FORMAT
+#define OUTPUT_FORMAT(x)		((x) << 4)
+#define OUTPUT_FORMAT_TILE32x32 	(OUTPUT_FORMAT(0x0))
+#define OUTPUT_FORMAT_TILE128x32	(OUTPUT_FORMAT(0x1))
+#define OUTPUT_FORMAT_I420		(OUTPUT_FORMAT(0x2))
+#define OUTPUT_FORMAT_YV12		(OUTPUT_FORMAT(0x3))
+#define OUTPUT_FORMAT_NV12		(OUTPUT_FORMAT(0x4))
+#define OUTPUT_FORMAT_NV21		(OUTPUT_FORMAT(0x5))
+
+#define EXTRA_OUTPUT_FORMAT(x)                ((x) << 0)
+#define EXTRA_OUTPUT_FORMAT_TILE32x32         (EXTRA_OUTPUT_FORMAT(0x0))
+#define EXTRA_OUTPUT_FORMAT_TILE128x32        (EXTRA_OUTPUT_FORMAT(0x1))
+#define EXTRA_OUTPUT_FORMAT_I420              (EXTRA_OUTPUT_FORMAT(0x2))
+#define EXTRA_OUTPUT_FORMAT_YV12              (EXTRA_OUTPUT_FORMAT(0x3))
+#define EXTRA_OUTPUT_FORMAT_NV12              (EXTRA_OUTPUT_FORMAT(0x4))
+#define EXTRA_OUTPUT_FORMAT_NV21              (EXTRA_OUTPUT_FORMAT(0x5))
+
+//CEDARV_HVEC_TRIG
+#define HEVC_TRIG_FUNCTION(x)		((x))
+#define HEVC_TRIG_FUNCTION_U		(HEVC_TRIG_FUNCTION(0x2))
+#define HEVC_TRIG_FUNCTION_SKIP         (HEVC_TRIG_FUNCTION(0x3))
+#define HEVC_TRIG_FUNCTION_SE		(HEVC_TRIG_FUNCTION(0x4))
+#define HEVC_TRIG_FUNCTION_UE		(HEVC_TRIG_FUNCTION(0x5))
+#define HEVC_TRIG_FUNCTION_SYNC		(HEVC_TRIG_FUNCTION(0x7))
+#define HEVC_TRIG_FUNCTION_DECODE	(HEVC_TRIG_FUNCTION(0x8))
+#define HEVC_TRIG_PARA(x)		((x) << 8)
+
+//CEDARV_HEVC_STATUS
+#define HEVC_STATUS_VLD_BUSY		(1 << 8)
+#define HEVC_STATUS_ERR			(1 << 1)
+#define HEVC_STATUS_DONE		(1 << 0)
+
+//CEDARV_HEVC_CTB_ADDR
+#define HEVC_CTB_ADDR_X(x)		(((x) & 0xFF))
+#define HEVC_CTB_ADDR_Y(x)		(((x) & 0xFF) << 16)
 
 #endif

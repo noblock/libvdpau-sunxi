@@ -66,7 +66,7 @@ VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32
         break;
 
     case VDP_DECODER_PROFILE_MPEG4_PART2_SP:
-        case VDP_DECODER_PROFILE_MPEG4_PART2_ASP:
+    case VDP_DECODER_PROFILE_MPEG4_PART2_ASP:
     case VDP_DECODER_PROFILE_DIVX4_QMOBILE:
     case VDP_DECODER_PROFILE_DIVX4_MOBILE:
     case VDP_DECODER_PROFILE_DIVX4_HOME_THEATER:
@@ -78,6 +78,7 @@ VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32
         cedarv_allocateEngine(CEDARV_ENGINE_MPEG);
         ret = new_decoder_mpeg4(dec);
         break;
+
     case VDP_DECODER_PROFILE_DIVX3_HD_1080P:
     case VDP_DECODER_PROFILE_DIVX3_QMOBILE:
     case VDP_DECODER_PROFILE_DIVX3_MOBILE:
@@ -85,6 +86,16 @@ VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32
         cedarv_allocateEngine(CEDARV_ENGINE_MPEG);
         ret = new_decoder_msmpeg4(dec);
         break;
+
+    case VDP_DECODER_PROFILE_HEVC_MAIN:
+        if (cedarv_get_version() >= 0x1680) {
+           cedarv_allocateEngine(CEDARV_ENGINE_HEVC);
+           ret = new_decoder_h265(dec);
+        }
+        else
+           ret = VDP_STATUS_INVALID_DECODER_PROFILE;
+        break;
+
     default:
         ret = VDP_STATUS_INVALID_DECODER_PROFILE;
         break;
@@ -211,6 +222,14 @@ VdpStatus vdp_decoder_query_capabilities(VdpDevice device, VdpDecoderProfile pro
     case VDP_DECODER_PROFILE_DIVX4_HD_1080P:
     case VDP_DECODER_PROFILE_DIVX3_HD_1080P:
         *is_supported = VDP_TRUE;
+        break;
+
+    case VDP_DECODER_PROFILE_HEVC_MAIN:
+        *max_level = VDP_DECODER_LEVEL_HEVC_5;
+        if (cedarv_get_version() >= 0x1680)
+           *is_supported = VDP_TRUE;
+        else
+           *is_supported = VDP_FALSE;
         break;
 
     default:

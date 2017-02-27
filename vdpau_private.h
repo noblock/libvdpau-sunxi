@@ -185,6 +185,7 @@ VdpStatus new_decoder_mpeg12(decoder_ctx_t *decoder);
 VdpStatus new_decoder_h264(decoder_ctx_t *decoder);
 VdpStatus new_decoder_mpeg4(decoder_ctx_t *decoder);
 VdpStatus new_decoder_msmpeg4(decoder_ctx_t *decoder);
+VdpStatus new_decoder_h265(decoder_ctx_t *decoder);
 
 void *handle_create(size_t size, VdpHandle *handle, enum HandleType type);
 void *handle_get(VdpHandle handle);

@@ -58,6 +58,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display, int screen, VdpDevice *dev
 			VDPAU_DBG("Failed to open /dev/g2d! OSD disabled.");
 	}
 
+        VDPAU_DBG("VE version 0x%04x opened", cedarv_get_version());
 	*get_proc_address = &vdp_get_proc_address;
         
 	return VDP_STATUS_OK;

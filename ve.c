@@ -26,6 +26,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include "ve.h"
+#include <string.h>
 
 #include <valgrind/ammt_reqs.h>
 
@@ -42,6 +43,13 @@ enum IOCTL_CMD
 	IOCTL_ENABLE_VE,
 	IOCTL_DISABLE_VE,
 	IOCTL_SET_VE_FREQ,
+
+	IOCTL_WAIT_VE_DE_DISP2 = 0x102,
+	IOCTL_WAIT_VE_EN_DISP2,
+	IOCTL_RESET_VE_DISP2,
+	IOCTL_ENABLE_VE_DISP2,
+	IOCTL_DISABLE_VE_DISP2,
+	IOCTL_SET_VE_FREQ_DISP2,
 
 	IOCTL_CONFIG_AVS2 = 0x200,
 	IOCTL_GETVALUE_AVS2 ,
@@ -169,14 +177,24 @@ int cedarv_open(void)
 
              AMMT_SET_REGS_BASE(ve.regs);
 
-	     ioctl(ve.fd, IOCTL_ENGINE_REQ, 0);
-             ioctl(ve.fd, IOCTL_ENABLE_VE, 0);
-	     ioctl(ve.fd, IOCTL_SET_VE_FREQ, 320);
-	     ioctl(ve.fd, IOCTL_RESET_VE, 0);
+             ioctl(ve.fd, IOCTL_ENGINE_REQ, 0);
+
+             ve.version = readl(ve.regs + CEDARV_VERSION) >> 16;
+
+             if(ve.version < 0x1639) 
+             {
+                ioctl(ve.fd, IOCTL_ENABLE_VE, 0);
+	        ioctl(ve.fd, IOCTL_SET_VE_FREQ, 320);
+	        ioctl(ve.fd, IOCTL_RESET_VE, 0);
+             }
+             else
+             {
+                ioctl(ve.fd, IOCTL_ENABLE_VE_DISP2, 0);
+                ioctl(ve.fd, IOCTL_SET_VE_FREQ_DISP2, 320);
+                ioctl(ve.fd, IOCTL_RESET_VE_DISP2, 0);
+             }
 
 	     writel(0x00130007, ve.regs + CEDARV_CTRL);
-
-	     ve.version = readl(ve.regs + CEDARV_VERSION) >> 16;
 
 #if USE_UMP
 	     if(ump_open() != UMP_OK)
@@ -207,7 +225,11 @@ void cedarv_close(void)
 	    if (ve.fd == -1)
 		return;
 
-            ioctl(ve.fd, IOCTL_DISABLE_VE, 0);
+            if (ve.version < 1639)
+               ioctl(ve.fd, IOCTL_DISABLE_VE, 0);
+            else
+               ioctl(ve.fd, IOCTL_DISABLE_VE_DISP2, 0);
+
 	    ioctl(ve.fd, IOCTL_ENGINE_REL, 0);
 
 	    munmap(ve.regs, 0x800);
@@ -232,7 +254,10 @@ int cedarv_wait(int timeout)
 	if (ve.fd == -1)
 		return 0;
 
-	return ioctl(ve.fd, IOCTL_WAIT_VE, timeout);
+	if (ve.version < 1669)
+		return ioctl(ve.fd, IOCTL_WAIT_VE, timeout);
+	else
+		return ioctl(ve.fd, IOCTL_WAIT_VE_DE_DISP2, timeout);
 }
 
 void *cedarv_get(int engine, uint32_t flags)
