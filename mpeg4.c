@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define TIMEMEAS 1
+#define TIMEMEAS 0
 
 #define USE_ISP_HW 0
 #define USE_XY_CONV 0
@@ -1803,31 +1803,37 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 bs = bs_saved;
 
                 int num_mba = decoder_p->pkt_hdr.curr_mb_num; 
-		if(num_mba == 0)
-			num_mba = height * width;
+        		if(num_mba == 0)
+		    	num_mba = height * width;
                 int vbv_size = num_mba - last_mba; // * width;
-		if(vbv_size == 0)
-		{
-			num_mba = height * width;
-			vbv_size = num_mba - last_mba;
-		}
-		last_mba = num_mba;
+                if(vbv_size == 0)
+                {
+                    num_mba = height * width;
+                    vbv_size = num_mba - last_mba;
+                }
                 uint32_t mpeg_trigger = 0;
-                uint32_t error_disable = 1;
-                mpeg_trigger |= vbv_size << 8;
-                mpeg_trigger |= 0xd;
-                mpeg_trigger |= CEDARV_MPEG_TRIG_ERROR_DISABLE(error_disable);
-                mpeg_trigger |= (0x4000000);
-
+                mpeg_trigger |= CEDARV_MPEG_TRIG_NUM_MB_IN_GOB(vbv_size);
+                mpeg_trigger |= CEDARV_MPEG_TRIG_VE_START_TYPE(0xd);
+                mpeg_trigger |= CEDARV_MPEG_TRIG_CHROM_FORMAT(CEDARV_MPEG_TRIG_COLOR_FORMAT_YUV_4_2_0);
+                mpeg_trigger |= CEDARV_MPEG_TRIG_DEC_FORMAT(4);
+                mpeg_trigger |= CEDARV_MPEG_TRIG_MB_BOUNDARY(1);
+                
                 writel(mpeg_trigger, cedarv_regs + CEDARV_MPEG_TRIGGER);
+                //mpeg_trigger = 7;
+                //writel(mpeg_trigger, cedarv_regs + CEDARV_MPEG_TRIGGER);
+                
+		        last_mba = num_mba;
 
                 // wait for interrupt
-#ifdef TIMEMEAS
+#if TIMEMEAS
             uint64_t tv, tv2;
                 tv = get_time();
 #endif
-                cedarv_wait(1);
-#ifdef TIMEMEAS                
+                if(cedarv_wait(1) <= 0)
+                {
+                  cedarv_VeReset();
+                }
+#if TIMEMEAS                
                 tv2 = get_time();
                 if (tv2-tv > 10000000) {
                     printf("cedarv_wait, longer than 10ms:%lld, pics=%ld, longs=%ld\n", tv2-tv, num_pics, ++num_longs);

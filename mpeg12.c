@@ -23,6 +23,8 @@
 #include <time.h>
 #include <stdio.h>
 
+#define TIMEMEAS 0
+
 extern uint64_t get_time();
 static const uint8_t zigzag_scan[64] =
 {
@@ -169,14 +171,17 @@ static VdpStatus mpeg12_decode(decoder_ctx_t *decoder, VdpPictureInfo const *_in
 
 	// wait for interrupt
 	++num_pics;
-uint64_t tv, tv2;
+#if TIMEMEAS
+	uint64_t tv, tv2;
 	tv = get_time();
+#endif
 	cedarv_wait(1);
+#if TIMEMEAS
 	tv2 = get_time();
 	if (tv2-tv > 10000000) {
 		printf("cedarv_wait, longer than 10ms:%lld, pics=%ld, longs=%ld\n", tv2-tv, num_pics, ++num_longs);
 		}
-	
+#endif	
 
 	// clean interrupt flag
 	writel(0x0000c00f, cedarv_regs + CEDARV_MPEG_STATUS);

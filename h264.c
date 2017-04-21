@@ -25,7 +25,8 @@
 #include <time.h>
 #include <stdio.h>
 
-//#define TIME_MEAS 1
+#define TIME_MEAS 0
+
 #define FIELDINTRABUFSIZE     0x20000
 #define NEIGHBORINFOBUFSIZE   0x4000
 

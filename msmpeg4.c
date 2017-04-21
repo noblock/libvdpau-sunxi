@@ -29,6 +29,7 @@
 #include <stdio.h>
 
 #define MBAC_BITRATE 50*1024
+#define TIMEMEAS 0
 
 extern uint32_t show_bits(bitstream *bs, int n);
 extern uint32_t get_bits(bitstream *bs, int n);
