@@ -1651,7 +1651,7 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             writel(cedarv_virt2phys(output->dataY), cedarv_regs + CEDARV_MPEG_ROT_LUMA);
             writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_ROT_CHROMA);
 
-            if(cedarv_get_version() >= 1680)
+            if(cedarv_get_version() >= 0x1680)
             {
                 writel(OUTPUT_FORMAT_NV12 | EXTRA_OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
                 output->source_format = VDP_YCBCR_FORMAT_NV12;

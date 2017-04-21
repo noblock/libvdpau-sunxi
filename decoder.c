@@ -83,7 +83,7 @@ VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32
     case VDP_DECODER_PROFILE_DIVX3_QMOBILE:
     case VDP_DECODER_PROFILE_DIVX3_MOBILE:
     case VDP_DECODER_PROFILE_DIVX3_HOME_THEATER:
-        if(cedarv_get_version() < 1680)
+        if(cedarv_get_version() < 0x1680)
         {
           cedarv_allocateEngine(CEDARV_ENGINE_MPEG);
           ret = new_decoder_msmpeg4(dec);
