@@ -55,6 +55,7 @@ unsigned char cedarv_byteAccess(CEDARV_MEMORY mem, size_t offset);
 void cedarv_setBufferInvalid(CEDARV_MEMORY mem);
 int cedarv_allocateEngine(int engine);
 int cedarv_freeEngine();
+int cedarv_VeReset();
 
 static inline void writel(uint32_t val, void *addr)
 {
@@ -234,6 +235,28 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_ISP_SRAM_INDEX 		0x0ae0 	//ISP VE SRAM Index
 #define CEDARV_ISP_SRAM_DATA 		0x0ae4 	//ISP VE SRAM Data
 
+#define CEDARV_AVC_PARAM			0xb04
+#define CEDARV_AVC_QP			    0xb08
+#define CEDARV_AVC_MOTION_EST		0xb10
+#define CEDARV_AVC_CTRL			    0xb14
+#define CEDARV_AVC_TRIGGER			0xb18
+#define CEDARV_AVC_STATUS			0xb1c
+#define CEDARV_AVC_BASIC_BITS		0xb20
+#define CEDARV_AVC_VLE_ADDR			0xb80
+#define CEDARV_AVC_VLE_END			0xb84
+#define CEDARV_AVC_VLE_OFFSET		0xb88
+#define CEDARV_AVC_VLE_MAX			0xb8c
+#define CEDARV_AVC_VLE_LENGTH		0xb90
+#define CEDARV_AVC_REF_LUMA			0xba0
+#define CEDARV_AVC_REF_CHROMA		0xba4
+#define CEDARV_AVC_REC_LUMA			0xbb0
+#define CEDARV_AVC_REC_CHROMA		0xbb4
+#define CEDARV_AVC_REF_SLUMA		0xbb8
+#define CEDARV_AVC_REC_SLUMA		0xbbc
+#define CEDARV_AVC_MB_INFO			0xbc0
+#define CEDARV_AVC_SDRAM_INDEX		0xbe0
+#define CEDARV_AVC_SDRAM_DATA		0xbe4
+
 
 
 #define CEDARV_MPEG_TRIG_FORMAT                     24
@@ -251,7 +274,55 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE_BIT  31
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE_SIZE  0x1
 
+#define CEDARV_MPEG_TRIG_CEDARV_START_TYPE(val)          (((val) & 0xf) << 0)
+#define CEDARV_MPEG_TRIG_STCD_TYPE(val)              (((val) & 0x3) << 4)
+#define CEDARV_MPEG_TRIG_ISGETBIT(val)               (((val) & 0x1) << 7)
+#define CEDARV_MPEG_TRIG_NUM_MB_IN_GOB(val)          (((val) & ((1<<16)-1)) << 8)
+#define CEDARV_MPEG_TRIG_DEC_FORMAT(val)             (((val) & 0x7) << 24)
+#define CEDARV_MPEG_TRIG_CHROM_FORMAT(val)           (((val) & 0x7) << 27)
+#define CEDARV_MPEG_TRIG_MB_BOUNDARY(val)            (((val) & 0x1) << 31)
+
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE(err_dis)      ((err_dis & CEDARV_MPEG_TRIG_ERROR_DISABLE_SIZE) << CEDARV_MPEG_TRIG_ERROR_DISABLE_BIT)
+
+#define CEDARV_MPEG_CTRL_CEDARV_FINISH_INT_EN(val)       (((val) & 0x1) << 3)
+#define CEDARV_MPEG_CTRL_CEDARV_ERROR_INT_EN(val)        (((val) & 0x1) << 4)
+#define CEDARV_MPEG_CTRL_VLD_MEM_REQ_INT_EN(val)     (((val) & 0x1) << 5)
+#define CEDARV_MPEG_CTRL_NOT_WRITE_RECONS_FLAG(val)  (((val) & 0x1) << 7)
+#define CEDARV_MPEG_CTRL_WRITE_ROTATE_PIC(val)       (((val) & 0x1) << 8)
+#define CEDARV_MPEG_CTRL_OUTPUT_EN(val)              (((val) & 0x1) << 12)
+#define CEDARV_MPEG_CTRL_OUTLOOP_DBLK_EN(val)        (((val) & 0x1) << 13)
+#define CEDARV_MPEG_CTRL_QP_AC_DC_OUT_EN(val)        (((val) & 0x1) << 14)
+#define CEDARV_MPEG_CTRL_HISTOGRAM_OUTPUT_EN(val)    (((val) & 0x1) << 16)
+#define CEDARV_MPEG_CTRL_BYPASS_IQIS(val)            (((val) & 0x1) << 17)
+#define CEDARV_MPEG_CTRL_MVCS_FLD_HM(val)            (((val) & 0x1) << 19)
+#define CEDARV_MPEG_CTRL_MVCS_FLD_QM(val)            (((val) & 0x3) << 20)
+#define CEDARV_MPEG_CTRL_MVCS_MV1_QM(val)            (((val) & 0x3) << 22)
+#define CEDARV_MPEG_CTRL_MVCS_MV4_QM(val)            (((val) & 0x3) << 24)
+#define CEDARV_MPEG_CTRL_SWVLD_FLAG(val)             (((val) & 0x1) << 27)
+#define CEDARV_MPEG_CTRL_SW_CHROM_MV_SEL(val)        (((val) & 0x1) << 28)
+#define CEDARV_MPEG_CTRL_FDC_QAC_IN_DRAM(val)        (((val) & 0x1) << 30)
+#define CEDARV_MPEG_CTRL_MC_CACHE_EN(val)            (((val) & 0x1) << 31)
+
+#define CEDARV_MPEG_MVOPHDR_VOP_FCODE_B(val)         (((val) & 0x7) << 0)
+#define CEDARV_MPEG_MVOPHDR_VOP_FCODE_F(val)         (((val) & 0x7) << 3)
+#define CEDARV_MPEG_MVOPHDR_ALTER_V_SCAN(val)        (((val) & 0x1) << 6)
+#define CEDARV_MPEG_MVOPHDR_TOP_FIELD_FIRST(val)     (((val) & 0x1) << 7)
+#define CEDARV_MPEG_MVOPHDR_INTRA_DC_VLC_THR(val)    (((val) & 0x7) << 8)
+#define CEDARV_MPEG_MVOPHDR_IS_H263_UMV(val)         (((val) & 0x1) << 12)
+#define CEDARV_MPEG_MVOPHDR_EN_ADV_INTRA_PRED(val)   (((val) & 0x1) << 13)
+#define CEDARV_MPEG_MVOPHDR_EN_MODI_QUANT(val)       (((val) & 0x1) << 14)
+#define CEDARV_MPEG_MVOPHDR_IS_H263_PMV(val)         (((val) & 0x1) << 15)
+#define CEDARV_MPEG_MVOPHDR_USE_H263_ESCAPE(val)     (((val) & 0x1) << 16)
+#define CEDARV_MPEG_MVOPHDR_VOP_ROUNDING_TYPE(val)   (((val) & 0x1) << 17)
+#define CEDARV_MPEG_MVOPHDR_VOP_CODING_TYPE(val)     (((val) & 0x3) << 18)
+#define CEDARV_MPEG_MVOPHDR_NO_WRAPPING_POINTS(val)  (((val) & 0x3) << 20)
+#define CEDARV_MPEG_MVOPHDR_RESYNC_MARKER_DIS(val)   (((val) & 0x1) << 22)
+#define CEDARV_MPEG_MVOPHDR_QUARTER_SAMPLE(val)      (((val) & 0x1) << 23)
+#define CEDARV_MPEG_MVOPHDR_QUANT_TYPE(val)          (((val) & 0x1) << 24)
+#define CEDARV_MPEG_MVOPHDR_SPRITE_WRAP_ACCURACY(val) (((val) & 0x3) << 25)
+#define CEDARV_MPEG_MVOPHDR_CO_LOCATED_VOP_TYPE(val) (((val) & 0x3) << 28)
+#define CEDARV_MPEG_MVOPHDR_INTERLACED(val)          (((val) & 0x1) << 30)
+#define CEDARV_MPEG_MVOPHDR_SHORT_VIDEO_HEADER(val)  (((val) & 0x1) << 31)
 
 //H264 Status values
 #define VLD_BUSY                (1 << 8)

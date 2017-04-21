@@ -124,6 +124,23 @@ int cedarv_allocateEngine(int engine)
   return status;
 }
 
+int cedarv_VeReset()
+{
+  if(ve.version < 0x1639) 
+  {
+    ioctl(ve.fd, IOCTL_ENABLE_VE, 0);
+    ioctl(ve.fd, IOCTL_SET_VE_FREQ, 320);
+    ioctl(ve.fd, IOCTL_RESET_VE, 0);
+  }
+  else
+  {
+    ioctl(ve.fd, IOCTL_ENABLE_VE_DISP2, 0);
+    ioctl(ve.fd, IOCTL_SET_VE_FREQ_DISP2, 320);
+    ioctl(ve.fd, IOCTL_RESET_VE_DISP2, 0);
+  }
+  return 0;
+}
+
 int cedarv_freeEngine()
 {
   int status = 1;
@@ -181,19 +198,8 @@ int cedarv_open(void)
 
              ve.version = readl(ve.regs + CEDARV_VERSION) >> 16;
 
-             if(ve.version < 0x1639) 
-             {
-                ioctl(ve.fd, IOCTL_ENABLE_VE, 0);
-	        ioctl(ve.fd, IOCTL_SET_VE_FREQ, 320);
-	        ioctl(ve.fd, IOCTL_RESET_VE, 0);
-             }
-             else
-             {
-                ioctl(ve.fd, IOCTL_ENABLE_VE_DISP2, 0);
-                ioctl(ve.fd, IOCTL_SET_VE_FREQ_DISP2, 320);
-                ioctl(ve.fd, IOCTL_RESET_VE_DISP2, 0);
-             }
-
+         cedarv_VeReset();
+         
 	     writel(0x00130007, ve.regs + CEDARV_CTRL);
 
 #if USE_UMP
@@ -252,7 +258,7 @@ int cedarv_get_version(void)
 int cedarv_wait(int timeout)
 {
 	if (ve.fd == -1)
-		return 0;
+		return -1;
 
 	if (ve.version < 1669)
 		return ioctl(ve.fd, IOCTL_WAIT_VE, timeout);
