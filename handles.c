@@ -22,6 +22,7 @@
 #include <string.h>
 #include "vdpau_private.h"
 #include <stdio.h>
+#include <assert.h>
 
 #define INITIAL_SIZE 16
 
@@ -110,22 +111,21 @@ void handle_destroy(VdpHandle handle)
 
 	if (index >= 0 && index < ht.size)
 	{
-#if 1	
-           if(ht.data[index].refCnt > 0)
-           {
-              ht.data[index].refCnt--;
-              if(ht.data[index].refCnt == 0 && ht.data[index].data)
-              {
-                 free(ht.data[index].data);
-                 ht.data[index].data = NULL;
-              }
-           }
-#endif
-	}
-        else
+      assert(ht.data[index].refCnt > 0);
+      if(ht.data[index].refCnt > 0)
+      {
+        ht.data[index].refCnt--;
+        if(ht.data[index].refCnt == 0 && ht.data[index].data)
         {
-           printf("wrong handle %X\n", handle);
+            free(ht.data[index].data);
+            ht.data[index].data = NULL;
         }
+      }
+	}
+    else
+    {
+        printf("wrong handle %X\n", handle);
+    }
 	pthread_rwlock_unlock(&ht.lock);
 }
 void handle_release (VdpHandle handle)
@@ -160,7 +160,7 @@ void handles_print()
 	int i;
 	for(i=0; i < ht.size; ++i)
 	{
-		printf("handle %d=%p\n", i+1, ht.data[i].data);
+		printf("handle %d=%p type=%d refCnt=%d\n", i+1, ht.data[i].data, ht.data[i].type, ht.data[i].refCnt);
 	}
 
 }
