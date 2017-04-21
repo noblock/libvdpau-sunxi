@@ -21,5 +21,6 @@ void cedarv_disp_init();
 void cedarv_disp_close();
 int cedarv_disp_convertMb2Yuv420(int width, int height, CEDARV_MEMORY y, CEDARV_MEMORY uv, 
                                  CEDARV_MEMORY convY, CEDARV_MEMORY convU, CEDARV_MEMORY convV);
+int cedarv_disp_convertARGB2Yuv420(int width, int height, CEDARV_MEMORY y, CEDARV_MEMORY convY, CEDARV_MEMORY convUV);
 
 #endif
