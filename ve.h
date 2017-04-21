@@ -274,7 +274,7 @@ static inline void writeb(uint8_t val, void *addr)
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE_BIT  31
 #define CEDARV_MPEG_TRIG_ERROR_DISABLE_SIZE  0x1
 
-#define CEDARV_MPEG_TRIG_CEDARV_START_TYPE(val)          (((val) & 0xf) << 0)
+#define CEDARV_MPEG_TRIG_VE_START_TYPE(val)          (((val) & 0xf) << 0)
 #define CEDARV_MPEG_TRIG_STCD_TYPE(val)              (((val) & 0x3) << 4)
 #define CEDARV_MPEG_TRIG_ISGETBIT(val)               (((val) & 0x1) << 7)
 #define CEDARV_MPEG_TRIG_NUM_MB_IN_GOB(val)          (((val) & ((1<<16)-1)) << 8)
