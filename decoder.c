@@ -22,6 +22,8 @@
 #include "ve.h"
 #include <stdio.h>
 
+#define TIMEMEAS 0
+
 VdpStatus vdp_decoder_create(VdpDevice device, VdpDecoderProfile profile, uint32_t width, uint32_t height, uint32_t max_references, VdpDecoder *decoder)
 {
     device_ctx_t *dev = handle_get(device);
@@ -188,8 +190,20 @@ VdpStatus vdp_decoder_render(VdpDecoder decoder, VdpVideoSurface target, VdpPict
     }
     //memory is mapped unchached, therefore no flush necessary. hopefully ;)
     cedarv_flush_cache(dec->data, pos);
-
+#if TIMEMEAS
+    static int num_pics=0;
+    static int num_longs=0;
+    ++num_pics;
+    uint64_t tv, tv2;
+    tv = get_time();
+#endif
     status = dec->decode(dec, picture_info, pos, vid);
+#if TIMEMEAS                
+    tv2 = get_time();
+    if (tv2-tv > 10000000) {
+      printf("codec decode, longer than 10ms:%lld, pics=%ld, longs=%ld\n", tv2-tv, num_pics, ++num_longs);
+    }
+#endif
 
     handle_release(target);
     handle_release(decoder);

@@ -448,11 +448,11 @@ static int getMVdata(bitstream *bs, mp4_private_t *priv)
 }
 static int find_pmv (bitstream *bs, mp4_private_t *priv, int block, int comp)
 {
-  int p1, p2, p3;
-  int xin1, xin2, xin3;
-  int yin1, yin2, yin3;
-  int vec1, vec2, vec3;
-  video_packet_header_t *vp = &priv->vop_header;
+    int p1, p2, p3;
+    int xin1, xin2, xin3;
+    int yin1, yin2, yin3;
+    int vec1, vec2, vec3;
+    video_packet_header_t *vp = &priv->pkt_hdr;
 
 	int x = vp->mb_xpos;
 	int y = vp->mb_ypos;
@@ -990,7 +990,6 @@ static int mpeg4_decode_sprite_trajectory(bitstream *gb, mp4_private_t *priv)
     int runs2 = LOG2CEIL(foo1);
     int runs2_1 = runs2 - 1;
     int mask2 = 1 << runs2_1;
-    unsigned long long l_mask2 = mask2;
 
     int foo3 = h2 * temp_v1_1;
     int foo4 = h2 * w2_2;
@@ -999,14 +998,12 @@ static int mpeg4_decode_sprite_trajectory(bitstream *gb, mp4_private_t *priv)
     long long l_foo4 = foo4;
 
     long long l_normalize_save = normalize_save;
-    unsigned long long l_mask = l_normalize_save | l_mask2;
     l_foo4 = r * l_foo4;
     long long l_foo5 = l_foo4 * sprite_ref[0][0];
     long long l_foo6 = l_foo4 * temp_v4_2_2;
     long long sub_1 = l_foo5 - l_foo3;
     sub_1 += l_foo4;
     l_foo6 -= l_foo3;
-    unsigned long long l_mask3 = l_mask | sub_1;
     l_foo6 += l_foo4;
 
     unsigned long long testmask = l_foo6 | l_normalize_save;
@@ -1196,9 +1193,8 @@ static int mpeg4_process_macroblock(bitstream *bs, decoder_ctx_t *decoder)
 
     int marker_length = mpeg4_calcResyncMarkerLength(priv);
     int mba = 0;
-    int result;
     do {
-        result = macroblock(bs, priv);
+        macroblock(bs, priv);
         mba++;
     } while(bits_left(bs) && (nextbits_bytealigned(bs, 23) != 0) &&
             nextbits_bytealigned(bs, marker_length) != 1);
@@ -1494,6 +1490,8 @@ int mpeg4_decode_packet_header(bitstream *gb, VdpPictureInfoMPEG4Part2 const *in
             }
         }
     }
+    
+    return 0;
 }
 #endif
 
@@ -1527,6 +1525,10 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
     VdpPictureInfoMPEG4Part2 const *info = (VdpPictureInfoMPEG4Part2 const *)_info;
     mp4_private_t *decoder_p = (mp4_private_t *)decoder->private;
     VdpDecoderMpeg4VolHeader *vol = &decoder_p->mpeg4VolHdr;
+#if TIMEMEAS
+    uint64_t tv, tv2;
+    tv = get_time();
+#endif
 
     uint32_t    startcode;
     int        more_mbs = 1;
@@ -1574,6 +1576,11 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             macroblock(&bs, decoder_p);
             bs=bs1;
 #endif
+#if TIMEMEAS
+            tv2 = get_time();
+            printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
+
             cedarv_regs = cedarv_get(CEDARV_ENGINE_MPEG, 0);
             // activate MPEG engine
             writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x0, cedarv_regs + CEDARV_CTRL);
@@ -1584,6 +1591,11 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 writel((uint32_t)(64 + i) << 8 | info->intra_quantizer_matrix[i], cedarv_regs + CEDARV_MPEG_IQ_MIN_INPUT);
             for (i = 0; i < 64; i++)
                 writel((uint32_t)(i) << 8 | info->non_intra_quantizer_matrix[i], cedarv_regs + CEDARV_MPEG_IQ_MIN_INPUT);
+#endif
+
+#if TIMEMEAS
+            tv2 = get_time();
+            printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
 #endif
 
             // set forward/backward predicion buffers
@@ -1622,8 +1634,8 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             {
                 writel((info->trb[0] << 16) | (info->trd[0] << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FRAME);
                 // unverified:
-                //writel((info->trb[1] << 16) | (info->trd[1] << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
-                writel(0, cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
+                writel((info->trb[1] << 16) | (info->trd[1] << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
+                //writel(0, cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
             }
             // set size
             width  = (decoder_p->mpeg4VolHdr.video_object_layer_width + 15) / 16;
@@ -1651,9 +1663,10 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             writel(cedarv_virt2phys(output->dataY), cedarv_regs + CEDARV_MPEG_ROT_LUMA);
             writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_ROT_CHROMA);
 
-            if(cedarv_get_version() >= 0x1680)
+            if(cedarv_get_version() >= 1680)
             {
                 writel(OUTPUT_FORMAT_NV12 | EXTRA_OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
+                writel((0x1 << 30) | (0x1 << 28) , cedarv_regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
                 output->source_format = VDP_YCBCR_FORMAT_NV12;
             }
 
@@ -1699,6 +1712,10 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             writel(mp4mbaAddr_reg, cedarv_regs + CEDARV_MPEG_MBA);
 
             int marker_length = mpeg4_calcResyncMarkerLength(decoder_p);
+#if TIMEMEAS
+            tv2 = get_time();
+            printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
 
             while(more_mbs == 1) {
 
@@ -1791,17 +1808,23 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                     writel(mv6, cedarv_regs + CEDARV_MPEG_MV6);
                 }
                 // trigger
-                bitstream bs_saved = bs;
-                int marker_length = mpeg4_calcResyncMarkerLength(decoder_p);
-                mp4_private_t _priv = *decoder_p;
-                if(find_resynccode(&bs, marker_length))
-                        mpeg4_decode_packet_header(&bs,
-                                        info,
-                                        decoder,
-                                        &_priv);
-                decoder_p->pkt_hdr.curr_mb_num = _priv.pkt_hdr.mb_num;
-                bs = bs_saved;
-
+#if TIMEMEAS
+                tv2 = get_time();
+                printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
+                if(!info->resync_marker_disable)
+                {
+                  bitstream bs_saved = bs;
+                  int marker_length = mpeg4_calcResyncMarkerLength(decoder_p);
+                  mp4_private_t _priv = *decoder_p;
+                  if(find_resynccode(&bs, marker_length))
+                          mpeg4_decode_packet_header(&bs,
+                                          info,
+                                          decoder,
+                                          &_priv);
+                  decoder_p->pkt_hdr.curr_mb_num = _priv.pkt_hdr.mb_num;
+                  bs = bs_saved;
+                }
                 int num_mba = decoder_p->pkt_hdr.curr_mb_num; 
         		if(num_mba == 0)
 		    	num_mba = height * width;
@@ -1823,10 +1846,13 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 //writel(mpeg_trigger, cedarv_regs + CEDARV_MPEG_TRIGGER);
                 
 		        last_mba = num_mba;
+#if TIMEMEAS
+                tv2 = get_time();
+                printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
 
                 // wait for interrupt
 #if TIMEMEAS
-            uint64_t tv, tv2;
                 tv = get_time();
 #endif
                 if(cedarv_wait(1) <= 0)
@@ -1852,9 +1878,13 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 int byteCurPos = (veCurPos+7) / 8;
 
                 more_mbs = 0;
+#if TIMEMEAS
+                tv2 = get_time();
+                printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
                 if (veCurPos < (len*8) && !info->resync_marker_disable)
                 {
-                    bs.bitpos = veCurPos / 8 * 8;
+                    bs.bitpos = veCurPos & 0xfffffff8; //     / 8 * 8;
                     if(bytealign(&bs) == 0)
                     {
                         if(find_resynccode(&bs, marker_length)) {
@@ -1862,8 +1892,6 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                                                  info,
                                                  decoder, 
                                                  decoder_p);
-                            int result;
-//                            bitstream bs1 = bs;
                             decoder_p->vop_header.quantizer = decoder_p->vop_header.vop_quant;
 
 /*
@@ -1875,7 +1903,6 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                                 mba++;
                             } while(bits_left(&bs) && (nextbits_bytealigned(&bs, 23) != 0) &&
                                     mba <= num_macroblock_in_gob);
-                            bs = bs1;
 */
                             more_mbs=1;
                             //last_mba = mba_reg;
@@ -1884,13 +1911,22 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                     }
                 }
                 writel(readl(cedarv_regs + CEDARV_MPEG_CTRL) | 0x7C, cedarv_regs + CEDARV_MPEG_CTRL);            
+#if TIMEMEAS
+                tv2 = get_time();
+                printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
+
             }
             // stop MPEG engine
             writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x7, cedarv_regs + CEDARV_CTRL);
             cedarv_put();
             output->frame_decoded = 1;
     	}
-	return VDP_STATUS_OK;
+#if TIMEMEAS
+        tv2 = get_time();
+        printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
+#endif
+        return VDP_STATUS_OK;
 }
 VdpStatus mpeg4_setVideoControlData(decoder_ctx_t *decoder, VdpDecoderControlDataId id, VdpDecoderControlData *data)
 {

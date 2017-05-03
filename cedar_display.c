@@ -38,6 +38,7 @@
 #include <sys/ioctl.h>
 #include "sunxi_disp_ioctl.h"
 #include <errno.h>
+#include "vdpau_private.h"
 
 static void (*Log)(int loglevel, const char *format, ...);
 

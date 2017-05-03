@@ -858,7 +858,7 @@ static VdpStatus h264_decode(decoder_ctx_t *decoder, VdpPictureInfo const *_info
 
 	// sdctrl
 	writel(0x00000000, cedarv_regs + CEDARV_H264_SDROT_CTRL);
-        if (cedarv_get_version() >= 0x1680)
+    if (cedarv_get_version() >= 0x1680)
 	{
 		writel(OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
 		output->source_format = VDP_YCBCR_FORMAT_NV12;

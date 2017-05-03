@@ -95,7 +95,7 @@ static VdpStatus mpeg12_decode(decoder_ctx_t *decoder, VdpPictureInfo const *_in
 
 	// set picture header
 	uint32_t pic_header = 0;
-	pic_header |= ((info->picture_coding_type & 0xf) << 28);
+	pic_header |= ((info->picture_coding_type & 0x7) << 28);
 	pic_header |= ((info->f_code[0][0] & 0xf) << 24);
 	pic_header |= ((info->f_code[0][1] & 0xf) << 20);
 	pic_header |= ((info->f_code[1][0] & 0xf) << 16);
