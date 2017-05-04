@@ -1663,10 +1663,13 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             writel(cedarv_virt2phys(output->dataY), cedarv_regs + CEDARV_MPEG_ROT_LUMA);
             writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_ROT_CHROMA);
 
-            if(cedarv_get_version() >= 1680)
+            if(cedarv_get_version() >= 0x1680)
             {
                 writel(OUTPUT_FORMAT_NV12 | EXTRA_OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
                 writel((0x1 << 30) | (0x1 << 28) , cedarv_regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
+                writel((ALIGN(output->width, 16)/2 << 16) | ALIGN(output->width, 32), cedarv_regs + CEDARV_OUTPUT_STRIDE);
+                writel((ALIGN(output->width, 16)/2 << 16) | ALIGN(output->width, 32), cedarv_regs + CEDARV_EXTRA_OUT_STRIDE);
+
                 output->source_format = VDP_YCBCR_FORMAT_NV12;
             }
 
@@ -1684,8 +1687,6 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             const int no_rotate = 6;
             rotscale |= 0x40620000;
             writel(rotscale, cedarv_regs + CEDARV_MPEG_SDROT_CTRL);
-            if (cedarv_get_version() >= 0x1680)
-                  writel((0x1 << 30) | (0x1 << 28) , cedarv_regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
 
                         // ??
             uint32_t cedarv_control = 0;
@@ -1749,9 +1750,9 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 vop_hdr	|= (info->alternate_vertical_scan_flag & 0x1) << 6;
                 vop_hdr	|= (decoder_p->vop_header.vop_coding_type != VOP_I ? 
                                 info->vop_fcode_forward & 0x7 : 0) << 3;
-                //vop_hdr	|= (decoder_p->vop_header.vop_coding_type == VOP_B ? 
-                //                info->vop_fcode_backward & 0x7 : 0) << 0;
-                vop_hdr	|= decoder_p->vop_header.fcode_backward & 0x7 << 0;
+                vop_hdr	|= (decoder_p->vop_header.vop_coding_type == VOP_B ? 
+                               info->vop_fcode_backward & 0x7 : 0) << 0;
+//                vop_hdr	|= decoder_p->vop_header.fcode_backward & 0x7 << 0;
                 writel(vop_hdr, cedarv_regs + CEDARV_MPEG_VOP_HDR);
 
                 decoder_p->vop_header.last_coding_type = decoder_p->vop_header.vop_coding_type;
