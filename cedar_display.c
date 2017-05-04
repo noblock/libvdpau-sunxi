@@ -42,7 +42,7 @@
 
 static void (*Log)(int loglevel, const char *format, ...);
 
-#define DEBUG_IMAGE_DATA 0
+#define DEBUG_IMAGE_DATA 1
 
 enum col_plane
 {
@@ -241,8 +241,13 @@ void glVDPAUUnmapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *sur
 static void writeBuffers(void* dataY, size_t szDataY, void* dataU, size_t szDataU, int h, int w);
 #endif
 
-VdpStatus glVDPAUGetVideoFrameConfig(vdpauSurfaceCedar surface, int *srcFormat, void** addrY, void** addrU, void** addrV, int *height, int * width)
+VdpStatus glVDPAUGetVideoFrameConfig(vdpauSurfaceCedar surface, struct videoFrameConfig *config)
 {
+  if(! config)
+  {
+    return VDP_STATUS_INVALID_HANDLE;
+  }
+  
   surface_display_ctx_t *nv  = handle_get(surface);
   if(! nv)
   {
@@ -256,16 +261,24 @@ VdpStatus glVDPAUGetVideoFrameConfig(vdpauSurfaceCedar surface, int *srcFormat, 
     return VDP_STATUS_INVALID_HANDLE;
   }
 
-  *srcFormat = vs->source_format;
-  *addrY = (void*)cedarv_virt2phys(vs->dataY);
-  *addrU = (void*)cedarv_virt2phys(vs->dataU);
+  config->srcFormat = vs->source_format;
+  config->addr[0] = (void*)cedarv_virt2phys(vs->dataY);
+  config->addr[1] = (void*)cedarv_virt2phys(vs->dataU);
+  config->align[0] = 32;
+  config->align[1] = 16;
   if( cedarv_isValid(vs->dataV))
-    *addrV = (void*)cedarv_virt2phys(vs->dataV);
+  {
+    config->addr[2] = (void*)cedarv_virt2phys(vs->dataV);
+    config->align[2] = 16;
+  }
   else
-    *addrV = NULL;
+  {
+    config->addr[2] = NULL;
+    config->align[2] = 0;
+  }
 
-  *height = vs->height;
-  *width = vs->width;
+  config->height = vs->height;
+  config->width = vs->width;
 
 #if DEBUG_IMAGE_DATA == 1
   static int first=1;
@@ -276,8 +289,8 @@ VdpStatus glVDPAUGetVideoFrameConfig(vdpauSurfaceCedar surface, int *srcFormat, 
                   cedarv_getSize(vs->dataY),
                   cedarv_getPointer(vs->dataU),
                   cedarv_getSize(vs->dataU),
-                  *height,
-                  *width);
+                  config->height,
+                  config->width);
      first = 0;
   }
   frmNum++;
