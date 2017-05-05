@@ -11,6 +11,9 @@ DISPLAY_SRC = cedar_display.c
 NV_TARGET = libvdpau_nv_sunxi.so.1
 NV_SRC = opengl_nv.c
 
+VE_H_INCLDUE = ve.h
+LIBCEDARDISPLAY_H_INCLUDE = libcedarDisplay.h
+
 CFLAGS ?= -Wall -O0 -g 
 LDFLAGS ?=
 LIBS = -lrt -lm -lpthread
@@ -57,6 +60,8 @@ MODULEDIR=/usr/lib/vdpau
 endif
 USRLIB = /usr/lib
 
+USRINCLUDE = /usr/include
+
 .PHONY: clean all install
 
 all: $(CEDARV_TARGET) $(TARGET) $(NV_TARGET) $(DISPLAY_TARGET)
@@ -94,6 +99,8 @@ install: $(TARGET) $(TARGET_NV)
 	ln -sf $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET) $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET).1
 	install -D $(DISPLAY_TARGET) $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET)
 	ln -sf $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET) $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET).1
+	install -D $(VE_H_INCLUDE) $(DESTDIR)/$(USRINCLUDE)/$(VE_H_INCLUDE)
+	install -D $(LIBCEDARDISPLAY_H_INCLUDE) $(DESTDIR)/$(USRINCLUDE)/$(LIBCEDARDISPLAY_H_INCLUDE)
 
 uninstall:
 	rm -f $(DESTDIR)$(MODULEDIR)/$(TARGET)

@@ -33,6 +33,8 @@
 #include "cedar_display.h"
 #include "ve.h"
 #include "veisp.h"
+#include "libcedarDisplay.h"
+
 #include <stdlib.h>
 
 #include <sys/ioctl.h>
@@ -62,6 +64,10 @@ int glVDPAUIsSurfaceCedar (vdpauSurfaceCedar surface);
 void glVDPAUUnregisterSurfaceCedar (vdpauSurfaceCedar surface);
 void glVDPAUMapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *surfaces);
 void glVDPAUUnmapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *surfaces);
+
+#if DEBUG_IMAGE_DATA == 1
+static void writeBuffers(void* dataY, size_t szDataY, void* dataU, size_t szDataU, int h, int w);
+#endif
 
 void glVDPAUInitCedar(const void *vdpDevice, const void *getProcAddress,
                    void (*_Log)(int loglevel, const char *format, ...))
@@ -236,10 +242,6 @@ void glVDPAUUnmapSurfacesCedar(GLsizei numSurfaces, const vdpauSurfaceCedar *sur
     handle_release(surfaces[j]);
   }
 }
-
-#if DEBUG_IMAGE_DATA == 1
-static void writeBuffers(void* dataY, size_t szDataY, void* dataU, size_t szDataU, int h, int w);
-#endif
 
 VdpStatus glVDPAUGetVideoFrameConfig(vdpauSurfaceCedar surface, struct videoFrameConfig *config)
 {

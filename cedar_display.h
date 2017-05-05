@@ -29,18 +29,4 @@ typedef struct cdRect
   uint32_t       height;
 } cdRect_t;
 
-struct videoFrameConfig
-{
-  uint16_t  width;
-  uint16_t  height;
-  void      *addr[3];
-  uint8_t   align[3];
-  uint8_t   srcFormat;
-};
-
-#define CS_MODE_BT709   1
-#define CS_MODE_BT601   2
-#define CS_MODE_YCC     3
-#define CS_MODE_XVYCC   4
-
 #endif
