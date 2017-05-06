@@ -1881,9 +1881,9 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
             // set trb/trd
             if (decoder_p->vop_header.vop_coding_type == VOP_B)
             {
-                writel((info->trb[0] << 16) | (info->trd[0] << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FRAME);
-                // unverified:
-                writel((info->trb[1] << 16) | (info->trd[1] << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
+                writel((info->trb[0] << 16) | ((info->trd[0] & 0xffff) << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FRAME);
+                if(vol->interlaced)
+                  writel((((info->trb[1] << 1) & 0xff) << 8) | (((info->trd[1] << 1) & 0xff) << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
                 //writel(0, cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
             }
             // set size
