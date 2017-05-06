@@ -40,6 +40,19 @@
 static int mpeg4_calcResyncMarkerLength(mp4_private_t *decoder_p);
 uint32_t show_bits_aligned(bitstream *bs, int n, int aligned);
 
+// shapes
+#define RECT_SHAPE       0
+#define BIN_SHAPE        1
+#define BIN_ONLY_SHAPE   2
+#define GRAY_SHAPE       3
+
+// aspect_ratio_info
+#define EXTENDED_PAR 15
+
+//vol_sprite_usage / sprite_enable
+#define STATIC_SPRITE 1
+#define GMC_SPRITE 2
+
 static int find_startcode(bitstream *bs)
 {
 	unsigned int pos, zeros = 0;
@@ -597,7 +610,7 @@ static int macroblock(bitstream *bs, mp4_private_t *priv)
     int j;
     int intraFlag, interFlag;
     vop_header_t *h = &priv->vop_header;
-    VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
+    vol_header_t *vol = &priv->vol_header;
     video_packet_header_t* vp = &priv->pkt_hdr;
 
 //	_Print("-Macroblock %d\n", mp4_state->hdr.mba);
@@ -793,7 +806,7 @@ int read_dmv_code (bitstream *gb, int length)
 static int mpeg4_decode_sprite_trajectory(bitstream *gb, mp4_private_t *priv)
 {
     vop_header_t *vop = &priv->vop_header;
-    VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
+    vol_header_t *vol = &priv->vol_header;
 
     int i;
     int a= 2<<vol->sprite_warping_accuracy;
@@ -848,6 +861,11 @@ static int mpeg4_decode_sprite_trajectory(bitstream *gb, mp4_private_t *priv)
     while((1<<beta )<h) beta++; // there seems to be a typo in the mpeg4 std for the definition of w' and h'
     w2= 1<<alpha;
     h2= 1<<beta;
+
+    vop->effective_sprite_warping_points = vol->no_of_sprite_warping_points;
+    while(vop->effective_sprite_warping_points &&
+          !(vop->sprite_traj[vop->effective_sprite_warping_points-1][0] || vop->sprite_traj[vop->effective_sprite_warping_points-1][1]))
+      vop->effective_sprite_warping_points--; 
 
 // Note, the 4th point isn't used for GMC
 #if 0
@@ -1204,12 +1222,11 @@ static int mpeg4_process_macroblock(bitstream *bs, decoder_ctx_t *decoder)
 
 static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info, decoder_ctx_t *decoder)
 {
-    int dummy;
     mp4_private_t *priv = (mp4_private_t *)decoder->private;
     vop_header_t *h = &priv->vop_header;
-    VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
+    vol_header_t *vol = &priv->vol_header;
 
-	h->vop_coding_type = get_bits(bs, 2);
+	/* h->last_vop_coding_type = */ h->vop_coding_type = get_bits(bs, 2);
 
 	// modulo_time_base
 	while (get_bits(bs, 1) != 0);
@@ -1226,6 +1243,11 @@ static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info
 	// vop_coded
 	if (!get_bits(bs, 1))
 		return 0;
+
+    if(h->last_vop_coding_type != VOP_B)
+      h->old_vop_coding_type = h->last_vop_coding_type;
+    else
+      h->old_vop_coding_type = 0;
 
         if(vol->newpred_enable)
         {
@@ -1305,10 +1327,14 @@ static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info
             // vop_fcode_forward
             if (h->vop_coding_type != VOP_I)
                 h->fcode_forward=get_bits(bs, 3);
+            else 
+              h->fcode_forward=1;
     
             // vop_fcode_backward
             if (h->vop_coding_type == VOP_B)
                 h->fcode_backward=get_bits(bs, 3);
+            else
+              h->fcode_backward=1;
     
             if(!vol->scalability) {
                 if(vol->video_object_layer_shape != RECT_SHAPE && 
@@ -1388,11 +1414,230 @@ static int decode_vop_header(bitstream *bs, VdpPictureInfoMPEG4Part2 const *info
         }
 	return 1;
 }
+
+static int decode_vol_header(bitstream *bs, decoder_ctx_t *decoder)
+{
+  mp4_private_t *priv = (mp4_private_t *)decoder->private;
+  vol_header_t *h = &priv->vol_header;
+  
+  memset(h, 0, sizeof(*h));
+    
+  h->random_accessible_vol = get_bits(bs, 1);
+  h->video_object_type_indication = get_bits(bs, 8);
+  if(get_bits(bs, 1) == 1)
+  {
+    h->video_object_layer_verid = get_bits(bs, 4);
+    h->video_object_layer_priority = get_bits(bs, 3);
+  }
+  else
+    h->video_object_layer_verid = 1;
+
+  h->aspect_ratio_info = get_bits(bs, 4);
+  if(h->aspect_ratio_info == EXTENDED_PAR)
+  {
+    h->par_width = get_bits(bs, 8);
+    h->par_height = get_bits(bs, 8);
+  }
+  h->vol_control_parameters = get_bits(bs, 1);
+  if(h->vol_control_parameters)
+  {
+    h->chroma_format = get_bits(bs, 2);
+    h->low_delay = get_bits(bs, 1);
+    h->vbv_parameters = get_bits(bs, 1);
+    if (h->vbv_parameters)
+    {
+      h->first_half_bit_rate = get_bits(bs, 15);
+      get_bits(bs, 1);
+      h->latter_half_bit_rate = get_bits(bs, 15);
+      get_bits(bs, 1);
+      h->first_half_vbv_buffer_size = get_bits(bs, 15);
+      get_bits(bs, 1);
+      h->latter_half_vbv_buffer_size = get_bits(bs, 3);
+      h->first_half_vbv_occupancy = get_bits(bs, 11);
+      get_bits(bs, 1);
+      h->latter_half_vbv_occupancy = get_bits(bs, 15);
+      get_bits(bs, 1);
+    }
+  }
+  h->video_object_layer_shape = get_bits(bs, 2);
+  if(h->video_object_layer_shape == GRAY_SHAPE && h->video_object_layer_verid != 1)
+    h->video_object_layer_shape_extension = get_bits(bs, 4);
+  
+  get_bits(bs, 1);
+  
+  h->vop_time_increment_resolution = get_bits(bs, 16);
+  
+  get_bits(bs, 1);
+  
+  int time_increment_bits = (31 - __builtin_clz((h->vop_time_increment_resolution - 1)|1)) + 1;
+  if(time_increment_bits < 1)
+    time_increment_bits = 1;
+  
+  h->fixed_vop_rate = get_bits(bs, 1);
+  if(h->fixed_vop_rate)
+    h->fixed_vop_time_increment = get_bits(bs, time_increment_bits);
+  else
+    h->fixed_vop_time_increment = 1;
+  
+  if(h->video_object_layer_shape != BIN_SHAPE)
+  {
+    if(h->video_object_layer_shape == RECT_SHAPE)
+    {
+      get_bits(bs, 1);
+      h->video_object_layer_width = get_bits(bs, 13);
+      get_bits(bs, 1);
+      h->video_object_layer_height = get_bits(bs, 13);
+      get_bits(bs, 1);
+    }
+    h->interlaced = get_bits(bs, 1);
+    h->obmc_disable = get_bits(bs, 1);
+    if(h->video_object_layer_verid == 1)
+      h->sprite_enable = get_bits(bs, 1);
+    else
+      h->sprite_enable = get_bits(bs, 2);
+    if(h->sprite_enable == STATIC_SPRITE || h->sprite_enable == GMC_SPRITE)
+    {
+      if(h->sprite_enable == STATIC_SPRITE)
+      {
+        h->sprite_width = get_bits(bs, 13);
+        get_bits(bs, 1);
+        h->sprite_height = get_bits(bs, 13);
+        get_bits(bs, 1);
+        h->sprite_left_coordinate = get_bits(bs, 13);
+        get_bits(bs, 1);
+        h->sprite_top_coordinate = get_bits(bs, 13);
+        get_bits(bs, 1);
+      }
+      h->no_of_sprite_warping_points = get_bits(bs, 6);
+      h->sprite_warping_accuracy = get_bits(bs, 2);
+      h->sprite_brightness_change = get_bits(bs, 1);
+      if(h->sprite_enable != GMC_SPRITE)
+        h->low_latency_sprite_enable = get_bits(bs, 1);
+    }
+    if(h->video_object_layer_verid != 1 && h->video_object_layer_shape != RECT_SHAPE)
+      h->sadct_disable = get_bits(bs, 1);
+    h->not_8_bit = get_bits(bs, 1);
+    if(h->not_8_bit)
+    {
+      h->quant_precision = get_bits(bs, 4);
+      h->bits_per_pixel = get_bits(bs, 4);
+    }
+    else
+      h->quant_precision = 5;
+    
+    if(h->video_object_layer_shape == GRAY_SHAPE)
+    {
+      h->no_gray_quant_update = get_bits(bs, 1);
+      h->composition_method = get_bits(bs, 1);
+      h->linear_composition = get_bits(bs, 1);
+    }
+    h->quant_type = get_bits(bs, 1);
+    if(h->quant_type == 1)
+    {
+      h->load_intra_quant_mat = get_bits(bs, 1);
+      if(h->load_intra_quant_mat == 1)
+      {
+        int i, v;
+        for (i = 0; i < 64; i++) 
+        {
+#if 0
+          if (bits_left(gb) < 8) {
+            av_log(s->avctx, AV_LOG_ERROR, "insufficient data for custom matrix\n");
+            return AVERROR_INVALIDDATA;
+          }
+#endif
+          v = get_bits(bs, 8);
+          if (v == 0)
+            break;
+        }
+      }
+      h->load_nonintra_quant_mat = get_bits(bs, 1);
+      if(h->load_nonintra_quant_mat)
+      {
+        int i, v;
+        for (i = 0; i < 64; i++) 
+        {
+          v = get_bits(bs, 8);
+          if (v == 0)
+            break;
+        }
+      }
+      if(h->video_object_layer_shape == GRAY_SHAPE)
+      {
+      }
+    }
+    if(h->video_object_layer_verid != 1)
+    {
+      h->quarter_sample = get_bits(bs, 1);
+    }
+    h->complexity_estimation_disable = get_bits(bs, 1);
+    if(h->complexity_estimation_disable)
+    {
+      //vop_complexisty header
+    }
+    h->resync_marker_disable = get_bits(bs, 1);
+    h->data_partitioned = get_bits(bs, 1);
+    if(h->data_partitioned)
+    {
+      h->reversible_vlc = get_bits(bs, 1);
+    }
+    if(h->video_object_layer_verid != 1)
+    {
+      h->newpred_enable = get_bits(bs, 1);
+      if(h->newpred_enable)
+      {
+        h->requested_upstream_message_type = get_bits(bs, 2);
+        h->newpred_segment_type = get_bits(bs, 1);
+      }
+      h->reduced_resolution_vop_enable = get_bits(bs, 1);
+    }
+    h->scalability = get_bits(bs, 1);
+    if(h->scalability)
+    {
+      h->hierarchy_type = get_bits(bs, 1);
+      h->ref_layer_id = get_bits(bs, 4);
+      h->ref_layer_sampling_direc = get_bits(bs, 1);
+      h->hor_sampling_factor_n = get_bits(bs, 5);
+      h->hor_sampling_factor_m = get_bits(bs, 5);
+      h->vert_sampling_factor_n = get_bits(bs, 5);
+      h->vert_sampling_factor_m = get_bits(bs, 5);
+      h->enhancement_type = get_bits(bs, 1);
+      if(h->video_object_layer_shape == BIN_SHAPE && h->hierarchy_type)
+      {
+        h->use_ref_shape = get_bits(bs, 1);
+        h->use_ref_texture = get_bits(bs, 1);
+        h->shape_hor_sampling_factor_n = get_bits(bs, 5);
+        h->shape_hor_sampling_factor_m = get_bits(bs, 5);
+        h->shape_vert_sampling_factor_n = get_bits(bs, 5);
+        h->shape_vert_sampling_factor_m = get_bits(bs, 5);
+      }
+    }
+  }
+  else
+  {
+    if(h->video_object_layer_verid != 1)
+    {
+      h->scalability = get_bits(bs, 1);
+      if(h->scalability)
+      {
+        h->ref_layer_id = get_bits(bs, 4);
+        h->shape_hor_sampling_factor_n = get_bits(bs, 5);
+        h->shape_hor_sampling_factor_m = get_bits(bs, 5);
+        h->shape_vert_sampling_factor_n = get_bits(bs, 5);
+        h->shape_vert_sampling_factor_m = get_bits(bs, 5);
+      }
+    }
+    h->resync_marker_disable = get_bits(bs, 1);
+  }
+  return 0;
+}
+
 #if 1
 int mpeg4_decode_packet_header(bitstream *gb, VdpPictureInfoMPEG4Part2 const *info, decoder_ctx_t *decoder, mp4_private_t *priv)
 {
     video_packet_header_t *h = &priv->pkt_hdr;
-    VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
+    vol_header_t *vol = &priv->vol_header;
+    //VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
     int mb_width = (vol->video_object_layer_width+15)/16;
     int mb_height = (vol->video_object_layer_height+15)/16;
     int mb_num_calc = mb_width * mb_height;
@@ -1499,7 +1744,7 @@ static int mpeg4_calcResyncMarkerLength(mp4_private_t *decoder_p)
 {
     int marker_length = 0;
 
-    if(decoder_p->mpeg4VolHdr.video_object_layer_shape == BIN_SHAPE)
+    if(decoder_p->vol_header.video_object_layer_shape == BIN_SHAPE)
         marker_length=17;
     else {
         if(decoder_p->vop_header.vop_coding_type == VOP_I)
@@ -1524,11 +1769,12 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 {
     VdpPictureInfoMPEG4Part2 const *info = (VdpPictureInfoMPEG4Part2 const *)_info;
     mp4_private_t *decoder_p = (mp4_private_t *)decoder->private;
-    VdpDecoderMpeg4VolHeader *vol = &decoder_p->mpeg4VolHdr;
 #if TIMEMEAS
     uint64_t tv, tv2;
     tv = get_time();
 #endif
+    vol_header_t *vol = &decoder_p->vol_header;
+    //VdpDecoderMpeg4VolHeader *vol = &decoder_p->mpeg4VolHdr;
 
     uint32_t    startcode;
     int        more_mbs = 1;
@@ -1542,13 +1788,6 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
     uint16_t width;
     uint16_t height;
     
-#if 1
-    if(!decoder_p->mpeg4VolHdrSet)
-    {
-        VDPAU_DBG("MPEG4 VOL Header must be set prior decoding of frames! Sorry");
-        return VDP_STATUS_ERROR;
-    }
-#endif
 /*
 	if(info->resync_marker_disable)
 	{
@@ -1560,38 +1799,48 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 	void *cedarv_regs = cedarv_get_regs();
 	bitstream bs = { .data = cedarv_getPointer(decoder->data), .length = len, .bitpos = 0 };
 
-        output->source_format = INTERNAL_YCBCR_FORMAT;
+    output->source_format = INTERNAL_YCBCR_FORMAT;
  
 	while (find_startcode(&bs))
 	{
             startcode = get_bits(&bs, 8);
-            if ( startcode != 0xb6)
-                            continue;
+            if (startcode == 0xb6)
+            {
+              if (!decode_vop_header(&bs, info, decoder))
+                continue;
+            }
+            else if((startcode >= 0x20 && startcode <= 0x2f))
+            {
+              decode_vol_header(&bs, decoder);
+              decoder_p->mpeg4VolHdrSet = 1;
+              continue;
+            }
+            else
+            {
+              continue;
+            }
 
-            if (!decode_vop_header(&bs, info, decoder))
-                    continue;
-
-#if 0
-            bitstream bs1 = bs;
-            macroblock(&bs, decoder_p);
-            bs=bs1;
-#endif
 #if TIMEMEAS
             tv2 = get_time();
             printf("cedarv_wait, line:%d, time offset since function start:%lld\n", __LINE__, tv2-tv);
 #endif
 
+#if 1
+            if(!decoder_p->mpeg4VolHdrSet)
+            {
+            VDPAU_DBG("MPEG4 VOL Header must be set prior decoding of frames! Sorry");
+              return VDP_STATUS_ERROR;
+            }
+#endif
             cedarv_regs = cedarv_get(CEDARV_ENGINE_MPEG, 0);
             // activate MPEG engine
             writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x0, cedarv_regs + CEDARV_CTRL);
-            
-#if 1
+
             // set quantisation tables
             for (i = 0; i < 64; i++)
                 writel((uint32_t)(64 + i) << 8 | info->intra_quantizer_matrix[i], cedarv_regs + CEDARV_MPEG_IQ_MIN_INPUT);
             for (i = 0; i < 64; i++)
                 writel((uint32_t)(i) << 8 | info->non_intra_quantizer_matrix[i], cedarv_regs + CEDARV_MPEG_IQ_MIN_INPUT);
-#endif
 
 #if TIMEMEAS
             tv2 = get_time();
@@ -1638,8 +1887,8 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 //writel(0, cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
             }
             // set size
-            width  = (decoder_p->mpeg4VolHdr.video_object_layer_width + 15) / 16;
-            height = (decoder_p->mpeg4VolHdr.video_object_layer_height + 15) / 16;
+            width  = (decoder_p->vol_header.video_object_layer_width + 15) / 16;
+            height = (decoder_p->vol_header.video_object_layer_height + 15) / 16;
             if(width == 0 || height == 0) {
                 //some videos do not have a VOL, at least at the right time
                 //try with the following parameters
@@ -1647,7 +1896,11 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 height = ((decoder->height + 15) / 16);
             }
 
-            writel((width <<16) | (width << 8) | height, cedarv_regs + CEDARV_MPEG_SIZE);
+            uint32_t mpeg_size = 0;
+            mpeg_size |= ((width & 1) ? width + 1 : width) << 16;
+            mpeg_size |= width << 8;
+            mpeg_size |= height;
+            writel(mpeg_size, cedarv_regs + CEDARV_MPEG_SIZE);
             writel(((width * 16) << 16) | (height * 16), cedarv_regs + CEDARV_MPEG_FRAME_SIZE);
 
             // set buffers
@@ -1669,7 +1922,6 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 writel((0x1 << 30) | (0x1 << 28) , cedarv_regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
                 writel((ALIGN(output->width, 16)/2 << 16) | ALIGN(output->width, 32), cedarv_regs + CEDARV_OUTPUT_STRIDE);
                 writel((ALIGN(output->width, 16)/2 << 16) | ALIGN(output->width, 32), cedarv_regs + CEDARV_EXTRA_OUT_STRIDE);
-
                 output->source_format = VDP_YCBCR_FORMAT_NV12;
             }
 
@@ -1690,22 +1942,44 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 
                         // ??
             uint32_t cedarv_control = 0;
-            cedarv_control |= 0x80000000;
-            if(decoder_p->vop_header.vop_coding_type != VOP_I && vol->quarter_sample != 0)
-                cedarv_control |= (1 << 20);
+            cedarv_control |= CEDARV_MPEG_CTRL_CEDARV_FINISH_INT_EN(1);
+            cedarv_control |= CEDARV_MPEG_CTRL_CEDARV_ERROR_INT_EN(1);
+            cedarv_control |= CEDARV_MPEG_CTRL_QP_AC_DC_OUT_EN(1);
+#if 0
+            if(decoder_p->vop_header.vop_coding_type == VOP_B)
+              cedarv_control |= CEDARV_MPEG_CTRL_SWVLD_FLAG(1);
+#endif
+            if(decoder_p->vop_header.vop_coding_type == VOP_P)
+              cedarv_control |= CEDARV_MPEG_CTRL_OUTPUT_EN(1);
+            
+            cedarv_control |= CEDARV_MPEG_CTRL_MVCS_FLD_HM(1);
+            cedarv_control |= CEDARV_MPEG_CTRL_MC_CACHE_EN(1);
+            cedarv_control |= CEDARV_MPEG_CTRL_WRITE_ROTATE_PIC(1);
+            cedarv_control |= CEDARV_MPEG_CTRL_NOT_WRITE_RECONS_FLAG((cedarv_get_version() < 0x1680));
+            cedarv_control |= CEDARV_MPEG_CTRL_OUTLOOP_DBLK_EN(1);
+            
+            if(info->quarter_sample)
+            {
+              switch(decoder_p->vop_header.vop_coding_type)
+              {
+                case VOP_B:
+                  //divx case missing
+                  cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV1_QM(1);
+                  cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV4_QM(2);
+                  cedarv_control |= CEDARV_MPEG_CTRL_MVCS_FLD_QM(1);
+                  break;
+                case VOP_P:
+                case VOP_S:
+                  //divx case missing
+                  cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV1_QM(2);
+                  cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV4_QM(1);
+                  cedarv_control |= CEDARV_MPEG_CTRL_MVCS_FLD_QM(2);
+                  break;
+              }
+            }
 
-            cedarv_control |= (1 << 19);
-            //if not divx then 1, else 2 (but divx version dependent)
-            cedarv_control |= (1 << 14);
-            // if p-frame and some other conditions
-            //if(p-frame && 
-            cedarv_control |= (decoder_p->vop_header.vop_coding_type == VOP_P ? 0x1 : 0x0) << 12;
-            cedarv_control |= (1 << 8);
-            cedarv_control |= ((cedarv_get_version() < 0x1680) << 7);
-            cedarv_control |= (1 << 4);
-            cedarv_control |= (1 << 3);
-            //cedarv_control = 0x80084198;
             writel(cedarv_control, cedarv_regs + CEDARV_MPEG_CTRL);
+
 #if 0
             writel(0x800001b8, cedarv_regs + CEDARV_MPEG_CTRL);
 #endif
@@ -1720,62 +1994,47 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 
             while(more_mbs == 1) {
 
-                //workaround: currently it is unclear what the meaning of bit 20/21 is
-                if(decoder_p->vop_header.vop_coding_type == VOP_S)
-                    vop_s_frame_seen = 3;
-
                 uint32_t vop_hdr = 0;
-                vop_hdr |= (info->interlaced & 0x1) << 30;
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_SHORT_VIDEO_HEADER(info->short_video_header);
+                
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_INTERLACED(info->interlaced);
                 int vop_coding;
                 switch(decoder_p->vop_header.vop_coding_type) {
                     case VOP_B:
                         vop_coding = 1;
-                        if(decoder_p->vop_header.last_coding_type == VOP_S)
+                        if(decoder_p->vop_header.last_vop_coding_type == VOP_S)
                             vop_coding = 3;
                         break;
                     default:
                         vop_coding = 0;
                 }
-                vop_hdr |= vop_coding << 28;
-                vop_hdr |= (vol->no_of_sprite_warping_points & 0x3) << 25;
-                vop_hdr |= (info->quant_type & 0x1) << 24;
-                vop_hdr |= (info->quarter_sample & 0x1) << 23;
-                vop_hdr |= (info->resync_marker_disable & 0x1) << 22; //error_res_disable
-                vop_hdr |= (vop_s_frame_seen & 0x3) << 20;
-                vop_hdr |= (decoder_p->vop_header.vop_coding_type & 0x3) << 18;
-                vop_hdr |= (info->rounding_control &0x1) << 17;
-                if(vol->sprite_enable != GMC_SPRITE) 
-                    vop_hdr |= (decoder_p->vop_header.intra_dc_vlc_thr & 0x7) << 8;
-                vop_hdr |= (info->top_field_first& 0x1) << 7;
-                vop_hdr	|= (info->alternate_vertical_scan_flag & 0x1) << 6;
-                vop_hdr	|= (decoder_p->vop_header.vop_coding_type != VOP_I ? 
-                                info->vop_fcode_forward & 0x7 : 0) << 3;
-                vop_hdr	|= (decoder_p->vop_header.vop_coding_type == VOP_B ? 
-                               info->vop_fcode_backward & 0x7 : 0) << 0;
-//                vop_hdr	|= decoder_p->vop_header.fcode_backward & 0x7 << 0;
+                if(decoder_p->vop_header.vop_coding_type == VOP_B)
+                  vop_hdr |= CEDARV_MPEG_MVOPHDR_CO_LOCATED_VOP_TYPE(vop_coding);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_SPRITE_WRAP_ACCURACY(vol->no_of_sprite_warping_points);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_QUANT_TYPE(info->quant_type);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_QUARTER_SAMPLE(info->quarter_sample);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_RESYNC_MARKER_DIS(info->resync_marker_disable);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_NO_WRAPPING_POINTS(decoder_p->vop_header.effective_sprite_warping_points);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_VOP_CODING_TYPE(decoder_p->vop_header.vop_coding_type);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_VOP_ROUNDING_TYPE(info->rounding_control);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_INTRA_DC_VLC_THR(decoder_p->vop_header.intra_dc_vlc_thr);
+                vop_hdr |= CEDARV_MPEG_MVOPHDR_TOP_FIELD_FIRST(info->top_field_first);
+                vop_hdr	|= CEDARV_MPEG_MVOPHDR_ALTER_V_SCAN(info->alternate_vertical_scan_flag);
+                if(decoder_p->vop_header.vop_coding_type != VOP_I)
+                  vop_hdr	|= CEDARV_MPEG_MVOPHDR_VOP_FCODE_F(info->vop_fcode_forward);
+                if(decoder_p->vop_header.vop_coding_type == VOP_B)
+                  vop_hdr	|= CEDARV_MPEG_MVOPHDR_VOP_FCODE_B(info->vop_fcode_backward);
+                
+                if(info->short_video_header)
+                  vop_hdr |= CEDARV_MPEG_MVOPHDR_USE_H263_ESCAPE(1);
+                
                 writel(vop_hdr, cedarv_regs + CEDARV_MPEG_VOP_HDR);
 
-                decoder_p->vop_header.last_coding_type = decoder_p->vop_header.vop_coding_type;
+                decoder_p->vop_header.last_vop_coding_type = decoder_p->vop_header.vop_coding_type;
 
                 writel(decoder_p->vop_header.vop_quant, cedarv_regs + CEDARV_MPEG_QP_INPUT);
 
                 writel(mba_reg, cedarv_regs + CEDARV_MPEG_MBA);
-
-                //clean up everything
-                writel(0xffffffff, cedarv_regs + CEDARV_MPEG_STATUS);
-
-                // set input offset in bits
-                writel(bs.bitpos, cedarv_regs + CEDARV_MPEG_VLD_OFFSET);
-
-                // set input length in bits
-                writel(((len*8 - bs.bitpos)+31) & ~0x1f, cedarv_regs + CEDARV_MPEG_VLD_LEN);
-
-                // input end
-                uint32_t input_addr = cedarv_virt2phys(decoder->data);
-                writel(input_addr + VBV_SIZE - 1, cedarv_regs + CEDARV_MPEG_VLD_END);
-
-                // set input buffer
-                writel((input_addr & 0x0ffffff0) | (input_addr >> 28) | (0x7 << 28), cedarv_regs + CEDARV_MPEG_VLD_ADDR);
 
                 writel(0x0, cedarv_regs + CEDARV_MPEG_MSMPEG4_HDR);
                 writel(0x0, cedarv_regs + CEDARV_MPEG_CTR_MB);
@@ -1828,13 +2087,29 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
                 }
                 int num_mba = decoder_p->pkt_hdr.curr_mb_num; 
         		if(num_mba == 0)
-		    	num_mba = height * width;
+		    	   num_mba = height * width;
                 int vbv_size = num_mba - last_mba; // * width;
                 if(vbv_size == 0)
                 {
                     num_mba = height * width;
                     vbv_size = num_mba - last_mba;
                 }
+                //clean up everything
+                writel(0xffffffff, cedarv_regs + CEDARV_MPEG_STATUS);
+
+                // set input offset in bits
+                writel(bs.bitpos, cedarv_regs + CEDARV_MPEG_VLD_OFFSET);
+
+                // set input length in bits
+                writel(((len*8 - bs.bitpos)+31) & ~0x1f, cedarv_regs + CEDARV_MPEG_VLD_LEN);
+
+                // input end
+                uint32_t input_addr = cedarv_virt2phys(decoder->data);
+                writel(input_addr + VBV_SIZE - 1, cedarv_regs + CEDARV_MPEG_VLD_END);
+
+                // set input buffer
+                writel((input_addr & 0x0ffffff0) | (input_addr >> 28) | (0x7 << 28), cedarv_regs + CEDARV_MPEG_VLD_ADDR);
+
                 uint32_t mpeg_trigger = 0;
                 mpeg_trigger |= CEDARV_MPEG_TRIG_NUM_MB_IN_GOB(vbv_size);
                 mpeg_trigger |= CEDARV_MPEG_TRIG_VE_START_TYPE(0xd);

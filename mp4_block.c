@@ -65,7 +65,7 @@ int block(bitstream *bs, mp4_private_t *priv, int block_num, int coded)
 	int i;
 	int dct_dc_size, dct_dc_diff;
     vop_header_t *h = &priv->vop_header;
-    VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
+    vol_header_t *vol = &priv->vol_header;
     
 	int intraFlag = ((h->derived_mb_type == INTRA) || 
 		(h->derived_mb_type == INTRA_Q)) ? 1 : 0;
@@ -303,7 +303,7 @@ int blockInter(bitstream *bs, mp4_private_t *priv, int block_num, int coded)
 	unsigned int * zigzag = priv->tables.zig_zag_scan; // zigzag scan dir
 	int i;
     vop_header_t *h = &priv->vop_header;
-    VdpDecoderMpeg4VolHeader *vol = &priv->mpeg4VolHdr;
+    vol_header_t *vol = &priv->vol_header;
 
 	//clearblock(ld->block); // clearblock
 

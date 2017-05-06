@@ -307,7 +307,8 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     void *cedarv_regs = cedarv_get_regs();
     bitstream bs = { .data = cedarv_getPointer(decoder->data), .length = len, .bitpos = 0 };
 
-        
+    output->source_format = INTERNAL_YCBCR_FORMAT;
+		
     if (!decode_vop_header(&bs, info, decoder_p))
             return 0;
 
@@ -317,14 +318,19 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     // activate MPEG engine
     //writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x0, cedarv_regs + CEDARV_CTRL);
     cedarv_regs = cedarv_get(CEDARV_ENGINE_MPEG, 0);
-            
-    #if 1
+    
+    writel(0xffffffff, cedarv_regs + CEDARV_MPEG_STATUS);
+    writel(0x0, cedarv_regs + CEDARV_MPEG_CTR_MB);
+    writel(0x0, cedarv_regs + CEDARV_MPEG_ERROR);
+
+    //if(info->quant_type)
+    {
             // set quantisation tables
             for (i = 0; i < 64; i++)
                     writel((uint32_t)(64 + i) << 8 | info->intra_quantizer_matrix[i], cedarv_regs + CEDARV_MPEG_IQ_MIN_INPUT);
             for (i = 0; i < 64; i++)
                     writel((uint32_t)(i) << 8 | info->non_intra_quantizer_matrix[i], cedarv_regs + CEDARV_MPEG_IQ_MIN_INPUT);
-    #endif
+    }
 
     // set forward/backward predicion buffers
     if (info->forward_reference != VDP_INVALID_HANDLE)
@@ -370,7 +376,11 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
             height = ((decoder->height + 15) / 16);
     }
 
-    writel(((width+1) <<16) | (width << 8) | height, cedarv_regs + CEDARV_MPEG_SIZE);
+    uint32_t mpeg_size = 0;
+    mpeg_size |= ((width & 1) ? width + 1 : width) << 16;
+    mpeg_size |= width << 8;
+    mpeg_size |= height;
+    writel(mpeg_size, cedarv_regs + CEDARV_MPEG_SIZE);
     writel(((width * 16) << 16) | (height * 16), cedarv_regs + CEDARV_MPEG_FRAME_SIZE);
 
     // set buffers
@@ -383,6 +393,15 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_REC_CHROMA);
     writel(cedarv_virt2phys(output->dataY), cedarv_regs + CEDARV_MPEG_ROT_LUMA);
     writel(cedarv_virt2phys(output->dataU), cedarv_regs + CEDARV_MPEG_ROT_CHROMA);
+
+    if(cedarv_get_version() >= 0x1680)
+    {
+       writel(OUTPUT_FORMAT_NV12 | EXTRA_OUTPUT_FORMAT_NV12, cedarv_regs + CEDARV_OUTPUT_FORMAT);
+       writel((0x1 << 30) | (0x1 << 28), cedarv_regs + CEDARV_EXTRA_OUT_FMT_OFFSET);
+       writel((ALIGN(output->width, 16)/2 << 16) | ALIGN(output->width, 32), cedarv_regs + CEDARV_OUTPUT_STRIDE);
+       writel((ALIGN(output->width, 16)/2 << 16) | ALIGN(output->width, 32), cedarv_regs + CEDARV_EXTRA_OUT_STRIDE);
+       output->source_format = VDP_YCBCR_FORMAT_NV12;
+    }
 
     uint32_t rotscale = 0;
     //bit 0-3: rotate_angle
@@ -401,22 +420,44 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
 
                             // ??
     uint32_t cedarv_control = 0;
-    cedarv_control |= 0x80000000;
-    //should be changed to real variable, must be 1 if divx 311
-    cedarv_control |= (1 << 26);
-    //cedarv_control |= (1 << 21); set if width > 2048
-    cedarv_control |= (1 << 19);
-    //if not divx then 1, else 2 (but divx version dependent)
-    //cedarv_control |= 0x2 << 16; if divx, else 1 << 16
-    cedarv_control |= (1 << 14);
-    // if p-frame and some other conditions
-    //if(p-frame && 
-    cedarv_control |= (decoder_p->vop_header.vop_coding_type == VOP_P ? 0x1 : 0x0) << 12;
-    cedarv_control |= (1 << 8);
-    cedarv_control |= (1 << 7);
-    cedarv_control |= (1 << 4);
-    cedarv_control |= (1 << 3);
-    //cedarv_control = 0x80084198;
+    cedarv_control |= CEDARV_MPEG_CTRL_CEDARV_FINISH_INT_EN(1);
+    cedarv_control |= CEDARV_MPEG_CTRL_CEDARV_ERROR_INT_EN(1);
+    cedarv_control |= CEDARV_MPEG_CTRL_QP_AC_DC_OUT_EN(1);
+
+#if 0
+    if(decoder_p->vop_header.vop_coding_type == VOP_B)
+      cedarv_control |= CEDARV_MPEG_CTRL_SWVLD_FLAG(1);
+#endif
+
+    if(decoder_p->vop_header.vop_coding_type == VOP_P)
+      cedarv_control |= CEDARV_MPEG_CTRL_OUTPUT_EN(1);
+            
+    cedarv_control |= CEDARV_MPEG_CTRL_MVCS_FLD_HM(1);
+    cedarv_control |= CEDARV_MPEG_CTRL_MC_CACHE_EN(1);
+    cedarv_control |= CEDARV_MPEG_CTRL_WRITE_ROTATE_PIC(1);
+    cedarv_control |= CEDARV_MPEG_CTRL_NOT_WRITE_RECONS_FLAG((cedarv_get_version() < 0x1680));
+    cedarv_control |= CEDARV_MPEG_CTRL_OUTLOOP_DBLK_EN(1);
+            
+    if(info->quarter_sample)
+    {
+      switch(decoder_p->vop_header.vop_coding_type)
+      {
+        case VOP_B:
+                  //divx case missing
+          cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV1_QM(1);
+          cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV4_QM(2);
+          cedarv_control |= CEDARV_MPEG_CTRL_MVCS_FLD_QM(1);
+          break;
+        case VOP_P:
+        case VOP_S:
+                  //divx case missing
+          cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV1_QM(2);
+          cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV4_QM(2);
+          cedarv_control |= CEDARV_MPEG_CTRL_MVCS_FLD_QM(1);
+          break;
+      }
+    }
+    cedarv_control |= CEDARV_MPEG_CTRL_MVCS_MV1_QM(2);
     writel(cedarv_control, cedarv_regs + CEDARV_MPEG_CTRL);
     mp4mbaAddr_reg = 0;
     writel(mp4mbaAddr_reg, cedarv_regs + CEDARV_MPEG_MBA);
@@ -426,17 +467,18 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     uint32_t mba_reg = 0x0;
 
     uint32_t vop_hdr = 0;
+    vop_hdr |= (info->short_video_header & 0x1) << 31;
     vop_hdr |= (info->interlaced & 0x1) << 30;
-    vop_hdr |= (decoder_p->vop_header.vop_coding_type == VOP_B ? h->cbp : 0) << 28;
+    vop_hdr |= ((decoder_p->vop_header.vop_coding_type == VOP_B ? h->cbp : 0) & 0x3) << 28;
     //needs correct variable !!!!!
     vop_hdr |= (1 << 27); //divx bit?
-            //vop_hdr |= (h->vop_quant & 0x3) << 25;
+    //vop_hdr |= (h->vop_quant & 0x3) << 25;
     vop_hdr |= (info->quant_type & 0x1 ) << 24;
     vop_hdr |= (info->quarter_sample & 0x1) << 23;
-    //vop_hdr |= (info->resync_marker_disable & 0x1) << 22; //error_res_disable
+    vop_hdr |= (info->resync_marker_disable & 0x1) << 22; //error_res_disable
     vop_hdr |= (decoder_p->vop_header.vop_coding_type & 0x3) << 18;
     vop_hdr |= (decoder_p->vop_header.no_rounding &0x1) << 17;
-            vop_hdr |= (h->inter_intra_pred & 0x1) << 15;
+    vop_hdr |= (h->inter_intra_pred & 0x1) << 15;
     vop_hdr |= (decoder_p->vop_header.intra_dc_vlc_thr & 0x7) << 8;
     vop_hdr |= (info->top_field_first& 0x1) << 7;
     vop_hdr	|= (info->alternate_vertical_scan_flag & 0x1) << 6;
@@ -461,7 +503,9 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     writel(bs.bitpos, cedarv_regs + CEDARV_MPEG_VLD_OFFSET);
 
     // set input length in bits
-    writel(((len*8)+0x1F) & ~0x1F, cedarv_regs + CEDARV_MPEG_VLD_LEN);
+    uint32_t vld_len=0;
+    vld_len |= ((len*8)+0x1F) & ~0x1F;
+    writel(vld_len, cedarv_regs + CEDARV_MPEG_VLD_LEN);
 
     // input end
     uint32_t input_addr = cedarv_virt2phys(decoder->data);
@@ -489,14 +533,16 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     writel(msmpeg_pic_hdr, cedarv_regs + CEDARV_MPEG_MSMPEG4_HDR);
     
     writel(0x0, cedarv_regs + CEDARV_MPEG_CTR_MB);
+    //writel(100000 << 8, cedarv_regs + CEDARV_TIMEOUT);
 
     // trigger
     int vbv_size = width * height;
     uint32_t mpeg_trigger = 0;
-    mpeg_trigger |= vbv_size << 8;
-    mpeg_trigger |= 0xd;
-    mpeg_trigger |= (1 << 31);
-    mpeg_trigger |= (0x4000000);
+    mpeg_trigger |= CEDARV_MPEG_TRIG_NUM_MB_IN_GOB(vbv_size);
+    mpeg_trigger |= CEDARV_MPEG_TRIG_VE_START_TYPE(0xd);
+    mpeg_trigger |= CEDARV_MPEG_TRIG_CHROM_FORMAT(CEDARV_MPEG_TRIG_COLOR_FORMAT_YUV_4_2_0);
+    mpeg_trigger |= CEDARV_MPEG_TRIG_DEC_FORMAT(4);
+    mpeg_trigger |= CEDARV_MPEG_TRIG_MB_BOUNDARY(1);
     writel(mpeg_trigger, cedarv_regs + CEDARV_MPEG_TRIGGER);
 
         // wait for interrupt
@@ -513,7 +559,10 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     }
 #endif
     // clean interrupt flag
-    writel(0x0000c00f, cedarv_regs + CEDARV_MPEG_STATUS);
+    uint32_t status = readl(cedarv_regs + CEDARV_MPEG_STATUS);
+    if(status)
+    	printf("status=%X\n", status);
+    writel(0x0000000f, cedarv_regs + CEDARV_MPEG_STATUS);
     error = readl(cedarv_regs + CEDARV_MPEG_ERROR);
     if(error)
         printf("got error=%d while decoding frame\n", error);
@@ -536,9 +585,9 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
     //writel((readl(cedarv_regs + CEDARV_CTRL) & ~0xf) | 0x7, cedarv_regs + CEDARV_CTRL);
     cedarv_put();
 
-    if (error)
-	return VDP_STATUS_ERROR;
-    else
+//    if (error)
+//	return VDP_STATUS_ERROR;
+//    else
     {
         output->frame_decoded = 1;
         return VDP_STATUS_OK;

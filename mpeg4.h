@@ -67,6 +67,83 @@ typedef struct
     int         scalability;
     int         enhancement_type;
     int         vol_control_parameters;
+} vol_header_t_tmp;
+
+typedef struct 
+{
+  uint8_t                    random_accessible_vol;
+  uint8_t                    video_object_type_indication;
+  uint8_t                    is_object_layer_identifier;
+  uint8_t                    video_object_layer_verid;
+  uint8_t                    video_object_layer_priority;
+  uint8_t                    aspect_ratio_info;
+  uint8_t                    par_width;
+  uint8_t                    par_height;
+  uint8_t                    vol_control_parameters;
+  uint8_t                    chroma_format;
+  uint8_t                    low_delay;
+  uint8_t                    vbv_parameters;
+  uint16_t                   first_half_bit_rate;
+  uint16_t                   latter_half_bit_rate;
+  uint16_t                   first_half_vbv_buffer_size;
+  uint16_t                   latter_half_vbv_buffer_size;
+  uint16_t                   first_half_vbv_occupancy;
+  uint16_t                   latter_half_vbv_occupancy;
+  uint8_t                    video_object_layer_shape;
+  uint8_t                    video_object_layer_shape_extension;
+  uint16_t                   vop_time_increment_resolution;
+  uint8_t                    fixed_vop_rate;
+  uint16_t                   fixed_vop_time_increment;
+  uint16_t                   video_object_layer_width;
+  uint16_t                   video_object_layer_height;
+  uint8_t                    interlaced;
+  uint8_t                    obmc_disable;
+  uint8_t                    sprite_enable;
+  uint16_t                   sprite_width;
+  uint16_t                   sprite_height;
+  uint16_t                   sprite_left_coordinate;
+  uint16_t                   sprite_top_coordinate;
+  uint8_t                    no_of_sprite_warping_points;
+  uint8_t                    sprite_warping_accuracy;
+  uint8_t                    sprite_brightness_change;
+  uint8_t                    low_latency_sprite_enable;
+  uint8_t                    sadct_disable;
+  uint8_t                    not_8_bit;
+  uint8_t                    quant_precision;
+  uint8_t                    bits_per_pixel;
+  uint8_t                    no_gray_quant_update;
+  uint8_t                    composition_method;
+  uint8_t                    linear_composition;
+  uint8_t                    quant_type;
+  uint8_t                    load_intra_quant_mat;
+  uint8_t                    intra_quant_mat[64];
+  uint8_t                    load_nonintra_quant_mat;
+  uint8_t                    nonintra_quant_mat[64];
+    //insert grayscale matrices here!!!!
+  uint8_t                    quarter_sample;
+  uint8_t                    complexity_estimation_disable;
+  uint8_t                    resync_marker_disable;
+  uint8_t                    data_partitioned;
+  uint8_t                    reversible_vlc;
+  uint8_t                    newpred_enable;
+  uint8_t                    requested_upstream_message_type;
+  uint8_t                    newpred_segment_type;
+  uint8_t                    reduced_resolution_vop_enable;
+  uint8_t                    scalability;
+  uint8_t                    hierarchy_type;
+  uint8_t                    ref_layer_id;
+  uint8_t                    ref_layer_sampling_direc;
+  uint8_t                    hor_sampling_factor_n;
+  uint8_t                    hor_sampling_factor_m;
+  uint8_t                    vert_sampling_factor_n;
+  uint8_t                    vert_sampling_factor_m;
+  uint8_t                    enhancement_type;
+  uint8_t                    use_ref_shape;
+  uint8_t                    use_ref_texture;
+  uint8_t                    shape_hor_sampling_factor_n;
+  uint8_t                    shape_hor_sampling_factor_m;
+  uint8_t                    shape_vert_sampling_factor_n;
+  uint8_t                    shape_vert_sampling_factor_m;
 } vol_header_t;
 
 typedef struct {
@@ -83,7 +160,8 @@ typedef struct {
 typedef struct
 {
     int vop_coding_type;
-    int last_coding_type;
+    int last_vop_coding_type;
+    int old_vop_coding_type;
     int intra_dc_vlc_thr;
     int vop_quant;
     int quantizer;
@@ -119,6 +197,7 @@ typedef struct
     int sprite_shift[2];             ///< sprite shift [isChroma]
     int sprite_ref[4][2];
     int real_sprite_warping_points;
+    int effective_sprite_warping_points;
     int sprite_offset_impr[2][2];
     int sprite_delta_impr[2][2];
     int sprite_shift_impr[2];
@@ -151,7 +230,7 @@ typedef struct
     CEDARV_MEMORY                   mbh_buffer;
     CEDARV_MEMORY                   dcac_buffer;
     CEDARV_MEMORY                   ncf_buffer;
-/*    vol_header_t                vol_hdr; */
+    vol_header_t                vol_header; 
     video_packet_header_t       pkt_hdr;
     VdpDecoderMpeg4VolHeader    mpeg4VolHdr;
     int                         mpeg4VolHdrSet;
