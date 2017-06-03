@@ -1,7 +1,10 @@
+CROSS_COMPILE ?=
+
 TARGET = libvdpau_sunxi.so.1
 SRC = device.c presentation_queue.c surface_output.c surface_video.c \
 	surface_bitmap.c video_mixer.c decoder.c handles.c \
-	h264.c mpeg12.c mpeg4.c mp4_vld.c mp4_tables.c mp4_block.c msmpeg4.c h265.c
+	h264.c mpeg12.c mpeg4.c mp4_vld.c mp4_tables.c mp4_block.c msmpeg4.c h265.c \
+	vp8_decoder.c vp8.c
 CEDARV_TARGET = libcedar_access.so
 CEDARV_SRC = ve.c veisp.c
 
@@ -67,16 +70,16 @@ USRINCLUDE = /usr/include
 all: $(CEDARV_TARGET) $(TARGET) $(NV_TARGET) $(DISPLAY_TARGET)
 
 $(TARGET): $(OBJ) $(CEDARV_TARGET)
-	$(CC) $(LIB_LDFLAGS) $(LDFLAGS) $(OBJ) $(LIBS) $(LIBS_CEDARV) -o $@
+	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS) $(LDFLAGS) $(OBJ) $(LIBS) $(LIBS_CEDARV) -o $@
 
 $(NV_TARGET): $(NV_OBJ) $(CEDARV_TARGET)
-	$(CC) $(LIB_LDFLAGS_NV) $(LDFLAGS) $(NV_OBJ) $(LIBS) $(LIBS_EGL) $(LIBS_GLES2) $(LIBS_VDPAU_SUNXI) $(LIBS_CEDARV) -o $@
+	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS_NV) $(LDFLAGS) $(NV_OBJ) $(LIBS) $(LIBS_EGL) $(LIBS_GLES2) $(LIBS_VDPAU_SUNXI) $(LIBS_CEDARV) -o $@
 
 $(CEDARV_TARGET): $(CEDARV_OBJ)
-	$(CC) $(LIB_LDFLAGS_CEDARV) $(LDFLAGS) $(CEDARV_OBJ) $(LIBS) -o $@
+	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS_CEDARV) $(LDFLAGS) $(CEDARV_OBJ) $(LIBS) -o $@
 
 $(DISPLAY_TARGET): $(DISPLAY_OBJ)
-	$(CC) $(LIB_LDFLAGS_DISPLAY) $(LDFLAGS) $(DISPLAY_OBJ) $(LIBS) $(LIBS_CEDARV) $(LIBS_VDPAU_SUNXI) -lvdpau_sunxi -o $@
+	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS_DISPLAY) $(LDFLAGS) $(DISPLAY_OBJ) $(LIBS) $(LIBS_CEDARV) $(LIBS_VDPAU_SUNXI) -lvdpau_sunxi -o $@
 
 clean:
 	rm -f $(OBJ)
