@@ -26,7 +26,7 @@
 
 //#include <stdlib.h>
 #include <vdpau/vdpau.h>
-#include <X11/Xlib.h>
+//#include <X11/Xlib.h>
 
 #include "ve.h"
 
