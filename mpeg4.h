@@ -231,9 +231,8 @@ typedef struct
     CEDARV_MEMORY                   dcac_buffer;
     CEDARV_MEMORY                   ncf_buffer;
     vol_header_t                vol_header; 
+    int				mpeg4VolHdrSet;
     video_packet_header_t       pkt_hdr;
-    VdpDecoderMpeg4VolHeader    mpeg4VolHdr;
-    int                         mpeg4VolHdrSet;
     vop_header_t                vop_header;
     int                         MV[2][6][DEC_MBR+1][DEC_MBC+2];
     MP4_TABLES                  tables;

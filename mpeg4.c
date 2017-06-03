@@ -2204,23 +2204,6 @@ int mpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info, 
 #endif
         return VDP_STATUS_OK;
 }
-VdpStatus mpeg4_setVideoControlData(decoder_ctx_t *decoder, VdpDecoderControlDataId id, VdpDecoderControlData *data)
-{
-	mp4_private_t *decoder_p = (mp4_private_t *)decoder->private;
-    VdpStatus status = VDP_STATUS_ERROR;
-    
-    if(id == VDP_MPEG4_VOL_HEADER)
-    { 
-        if(data->mpeg4VolHdr.struct_version != VDP_MPEG4_STRUCT_VERSION)
-            return VDP_STATUS_INVALID_STRUCT_VERSION;
-
-        decoder_p->mpeg4VolHdr = data->mpeg4VolHdr;
-        decoder_p->mpeg4VolHdrSet = 1;
-        
-        status = VDP_STATUS_OK;
-    }
-    return status;
-}
 
 VdpStatus new_decoder_mpeg4(decoder_ctx_t *decoder)
 {
@@ -2247,7 +2230,6 @@ VdpStatus new_decoder_mpeg4(decoder_ctx_t *decoder)
 	decoder->decode = mpeg4_decode;
 	decoder->private = decoder_p;
 	decoder->private_free = mp4_private_free;
-    decoder->setVideoControlData = mpeg4_setVideoControlData;
 
     save_tables(&decoder_p->tables);
 
