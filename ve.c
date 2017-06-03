@@ -28,7 +28,9 @@
 #include "ve.h"
 #include <string.h>
 
+#if defined(VALGRIND_DEBUG)
 #include <valgrind/ammt_reqs.h>
+#endif
 
 #define DEVICE "/dev/cedar_dev"
 #define PAGE_OFFSET (0xc0000000) // from kernel
