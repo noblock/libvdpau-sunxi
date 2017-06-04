@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #include <EGL/eglplatform_fb.h>
-#include <EGL/fbdev_window.h>  
+#include "EGL/fbdev_window.h"
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
@@ -37,7 +37,6 @@
 #include "veisp.h"
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include "EGL/fbdev_window.h"
 #include <stdlib.h>
 
 #define USE_TILE 0
