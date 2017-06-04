@@ -367,8 +367,8 @@ int msmpeg4_decode(decoder_ctx_t *decoder, VdpPictureInfoMPEG4Part2 const *_info
             writel((info->trb[1] << 16) | (info->trd[1] << 0), cedarv_regs + CEDARV_MPEG_TRBTRD_FIELD);
     }
     // set size
-    uint16_t width  = (decoder_p->mpeg4VolHdr.video_object_layer_width + 15) / 16;
-    uint16_t height = (decoder_p->mpeg4VolHdr.video_object_layer_height + 15) / 16;
+    uint16_t width  = (decoder_p->vol_header.video_object_layer_width + 15) / 16;
+    uint16_t height = (decoder_p->vol_header.video_object_layer_height + 15) / 16;
     if(width == 0 || height == 0) {
             //some videos do not have a VOL, at least at the right time
             //try with the following parameters
