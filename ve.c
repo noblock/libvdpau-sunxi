@@ -27,6 +27,7 @@
 #include <sys/mman.h>
 #include "ve.h"
 #include <string.h>
+#include <math.h>
 
 #if defined(VALGRIND_DEBUG)
 #include <valgrind/ammt_reqs.h>
@@ -192,9 +193,11 @@ int cedarv_open(void)
 	     ve.first_memchunk.size = info.reserved_mem_size;
 #endif
 
+#if defined(VALGRIND_DEBUG)
              VALGRIND_PRINTF("regs base addreess=%p\n", ve.regs);
 
              AMMT_SET_REGS_BASE(ve.regs);
+#endif
 
              ioctl(ve.fd, IOCTL_ENGINE_REQ, 0);
 

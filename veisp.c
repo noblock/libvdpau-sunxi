@@ -11,6 +11,7 @@
 #include "sunxi_disp_ioctl.h"
 #include <errno.h>
 #include <string.h>
+#include <math.h>
 
 static int fd = -1;
 
@@ -221,7 +222,6 @@ void cedarv_sw_convertToNv21Y(char* pSrc, char* pDst, int nWidth, int nHeight)
    int nMbWidth = 0;
    int nMbHeight = 0;
    int nLineStride=0;
-   char* pSrcOffset;
 
    nLineStride = (nWidth + 15) &~15;
    nMbWidth = (nWidth+31)&~31;
@@ -259,7 +259,6 @@ void cedarv_sw_convertToNv21C(char* pSrc, char* pDst, int nWidth, int nHeight)
    int nMbWidth = 0;
    int nMbHeight = 0;
    int nLineStride=0;
-   char* pSrcOffset;
 
    nLineStride = (nWidth*2 + 15) &~15;
    nMbWidth = (nWidth*2+31)&~31;

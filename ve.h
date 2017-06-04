@@ -21,6 +21,7 @@
 #define __CEDARV_H__
 
 #include <stdint.h>
+#include <string.h>
 
 int cedarv_open(void);
 void cedarv_close(void);
