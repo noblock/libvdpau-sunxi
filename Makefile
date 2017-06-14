@@ -33,6 +33,7 @@ LIBS_CEDARV = -L $(PWD) -lcedar_access
 LIBS_DISPLAY = -L $(PWD) -lcedar_access
 CC = gcc
 
+PCFILE := $(shell mktemp -u)
 
 USE_UMP = 1
 
@@ -67,6 +68,7 @@ MODULEDIR = $(shell pkg-config --variable=moduledir vdpau)
 ifeq ($(MODULEDIR),)
 MODULEDIR=/usr/lib/vdpau
 endif
+USR = /usr
 USRLIB = /usr/lib
 
 USRINCLUDE = /usr/include
@@ -111,11 +113,74 @@ install: $(TARGET) $(TARGET_NV)
 	install -D $(VE_H_INCLUDE) $(DESTDIR)$(USRINCLUDE)/$(VE_H_INCLUDE)
 	install -D $(LIBCEDARDISPLAY_H_INCLUDE) $(DESTDIR)$(USRINCLUDE)/$(LIBCEDARDISPLAY_H_INCLUDE)
 
+	#create pkgconfig file for libcedarDisplay
+	@echo 'prefix=${DESTDIR}${USR}' > ${PCFILE}
+	@echo "exec_prefix=\$${prefix}" >> ${PCFILE}
+	@echo "libdir=\$${prefix}/lib" >> ${PCFILE}
+	@echo "includedir=\$${prefix}/include" >> ${PCFILE}
+	@echo "" >> ${PCFILE}
+	@echo "Name: cedarDisplay" >> ${PCFILE}
+	@echo "Description: library using the Allwinner disp device to configure layers and display video frames" >>  ${PCFILE}
+	@echo "Version: 1.0.0" >> ${PCFILE}
+	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
+	@echo "Libs: -L\$${libdir} -lcedarDisplay" >> ${PCFILE}
+	@echo "Requires: cedar_access vdpau_sunxi" >> ${PCFILE}
+	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedarDisplay.pc
+	@rm ${PCFILE}
+
+	#create pkgconfig file for libcedar_access
+	@echo 'prefix=${DESTDIR}${USR}' > ${PCFILE}
+	@echo "exec_prefix=\$${prefix}" >> ${PCFILE}
+	@echo "libdir=\$${prefix}/lib" >> ${PCFILE}
+	@echo "includedir=\$${prefix}/include" >> ${PCFILE}
+	@echo "" >> ${PCFILE}
+	@echo "Name: cedar_access" >> ${PCFILE}
+	@echo "Description: library providing hardware access to the Allwinner cedar hardware + supporting functions" >>  ${PCFILE}
+	@echo "Version: 1.0.0" >> ${PCFILE}
+	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
+	@echo "Libs: -L\$${libdir} -lcedar_access" >> ${PCFILE}
+	@echo "Requires: libump" >>${PCFILE}
+	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedar_access.pc
+	@rm ${PCFILE}
+
+	#create pkgconfig file for libvdpau_nv_sunxi
+	@echo 'prefix=${DESTDIR}${MODULEDIR}' > ${PCFILE}
+	@echo "exec_prefix=\$${prefix}" >> ${PCFILE}
+	@echo "libdir=\$${prefix}/lib" >> ${PCFILE}
+	@echo "includedir=\$${prefix}/include" >> ${PCFILE}
+	@echo "" >> ${PCFILE}
+	@echo "Name: vdpau_nv_sunxi" >> ${PCFILE}
+	@echo "Description: library providing an emulated OpenGLES NV interface to the Allwinner OpenGLES stack" >>  ${PCFILE}
+	@echo "Version: 1.0.0" >> ${PCFILE}
+	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
+	@echo "Libs: -L\$${libdir} -lvdpau_nv_sunxi" >> ${PCFILE}
+	@echo "Requires: vdpau_sunxi" >> ${PCFILE}
+	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/vdpau_nv_sunxi.pc
+	@rm ${PCFILE}
+
+	#create pkgconfig file for libvdpau_sunxi
+	@echo 'prefix=${DESTDIR}${MODULEDIR}' > ${PCFILE}
+	@echo "exec_prefix=\$${prefix}" >> ${PCFILE}
+	@echo "libdir=\$${prefix}/lib" >> ${PCFILE}
+	@echo "includedir=\$${prefix}/include" >> ${PCFILE}
+	@echo "" >> ${PCFILE}
+	@echo "Name: vdpau_nv_sunxi" >> ${PCFILE}
+	@echo "Description: library providing VDPAU driver for the Allwinner video decoder hardware" >>  ${PCFILE}
+	@echo "Version: 1.0.0" >> ${PCFILE}
+	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
+	@echo "Libs: -L\$${libdir} -lvdpau_sunxi" >> ${PCFILE}
+	@echo "Requires: cedar_access" >> ${PCFILE}
+	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/vdpau_sunxi.pc
+	@rm ${PCFILE}
+
 uninstall:
 	rm -f $(DESTDIR)$(MODULEDIR)/$(TARGET)
 	rm -f $(DESTDIR)$(MODULEDIR)/$(NV_TARGET)
 	rm -f $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET)
 	rm -f $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET)
+	rm -f $(DESTDIR)$(USRLIB)/cedarDisplay.pc
+	rm -f $(DESTDIR)$(USRLIB)/cedar_access.pc
+	rm -f $(DESTDIR)$(USRLIB)/vdpau_nv_sunxi.pc
 
 %.o: %.c
 	$(CC) $(DEP_CFLAGS) $(LIB_CFLAGS) $(CFLAGS) -c $< -o $@
