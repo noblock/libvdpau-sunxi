@@ -144,9 +144,9 @@ install: $(TARGET) $(TARGET_NV)
 	@rm ${PCFILE}
 
 	#create pkgconfig file for libvdpau_nv_sunxi
-	@echo 'prefix=${DESTDIR}${MODULEDIR}' > ${PCFILE}
+	@echo 'prefix=${DESTDIR}' > ${PCFILE}
 	@echo "exec_prefix=\$${prefix}" >> ${PCFILE}
-	@echo "libdir=\$${prefix}/lib" >> ${PCFILE}
+	@echo "libdir=\$${prefix}/lib/${MODULEDIR}" >> ${PCFILE}
 	@echo "includedir=\$${prefix}/include" >> ${PCFILE}
 	@echo "" >> ${PCFILE}
 	@echo "Name: vdpau_nv_sunxi" >> ${PCFILE}
