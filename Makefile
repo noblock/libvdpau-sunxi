@@ -1,6 +1,7 @@
 CROSS_COMPILE ?=
 
-TARGET = libvdpau_sunxi.so.1
+TARGET_BASE = libvdpau_sunxi.so
+TARGET = $(TARGET_BASE).1
 SRC = device.c presentation_queue.c surface_output.c surface_video.c \
 	surface_bitmap.c video_mixer.c decoder.c handles.c \
 	h264.c mpeg12.c mpeg4.c mp4_vld.c mp4_tables.c mp4_block.c msmpeg4.c h265.c 
@@ -11,13 +12,16 @@ ifeq ($(USE_VP8),1)
 SRC += "vp8_decoder.c vp8.c"
 endif
 
-CEDARV_TARGET = libcedar_access.so
+CEDARV_TARGET_BASE = libcedar_access.so
+CEDARV_TARGET = $(CEDARV_TARGET_BASE).1
 CEDARV_SRC = ve.c veisp.c
 
-DISPLAY_TARGET = libcedarDisplay.so.1
+DISPLAY_TARGET_BASE = libcedarDisplay.so
+DISPLAY_TARGET = $(DISPLAY_TARGET_BASE).1
 DISPLAY_SRC = cedar_display.c
 
-NV_TARGET = libvdpau_nv_sunxi.so.1
+NV_TARGET_BASE = libvdpau_nv_sunxi.so
+NV_TARGET = $(NV_TARGET_BASE).1
 NV_SRC = opengl_nv.c
 
 VE_H_INCLUDE = ve.h
@@ -105,11 +109,13 @@ clean:
 
 install: $(TARGET) $(TARGET_NV)
 	install -D $(TARGET) $(DESTDIR)$(MODULEDIR)/$(TARGET)
+	ln -sf $(DESTDIR)$(USRLIB)/$(TARGET) $(DESTDIR)$(USRLIB)/$(TARGET_BASE)
 	install -D $(NV_TARGET) $(DESTDIR)$(MODULEDIR)/$(NV_TARGET)
+	ln -sf $(DESTDIR)$(USRLIB)/$(NV_TARGET) $(DESTDIR)$(USRLIB)/$(NV_TARGET_BASE)
 	install -D $(CEDARV_TARGET) $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET)
-	ln -sf $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET) $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET).1
+	ln -sf $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET) $(DESTDIR)$(USRLIB)/$(CEDARV_TARGET_BASE)
 	install -D $(DISPLAY_TARGET) $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET)
-	ln -sf $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET) $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET).1
+	ln -sf $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET) $(DESTDIR)$(USRLIB)/$(DISPLAY_TARGET_BASE)
 	install -D $(VE_H_INCLUDE) $(DESTDIR)$(USRINCLUDE)/$(VE_H_INCLUDE)
 	install -D $(LIBCEDARDISPLAY_H_INCLUDE) $(DESTDIR)$(USRINCLUDE)/$(LIBCEDARDISPLAY_H_INCLUDE)
 
