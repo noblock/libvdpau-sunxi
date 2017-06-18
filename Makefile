@@ -125,7 +125,7 @@ install: $(TARGET) $(TARGET_NV)
 	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
 	@echo "Libs: -L\$${libdir} -lcedarDisplay" >> ${PCFILE}
 	@echo "Requires: cedar_access vdpau_sunxi" >> ${PCFILE}
-	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedarDisplay.pc
+	install -D ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedarDisplay.pc
 	@rm ${PCFILE}
 
 	#create pkgconfig file for libcedar_access
@@ -140,7 +140,7 @@ install: $(TARGET) $(TARGET_NV)
 	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
 	@echo "Libs: -L\$${libdir} -lcedar_access" >> ${PCFILE}
 	@echo "Requires: libump" >>${PCFILE}
-	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedar_access.pc
+	install -D ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedar_access.pc
 	@rm ${PCFILE}
 
 	#create pkgconfig file for libvdpau_nv_sunxi
@@ -155,7 +155,7 @@ install: $(TARGET) $(TARGET_NV)
 	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
 	@echo "Libs: -L\$${libdir} -lvdpau_nv_sunxi" >> ${PCFILE}
 	@echo "Requires: vdpau_sunxi" >> ${PCFILE}
-	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/vdpau_nv_sunxi.pc
+	install -D ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/vdpau_nv_sunxi.pc
 	@rm ${PCFILE}
 
 	#create pkgconfig file for libvdpau_sunxi
@@ -170,7 +170,7 @@ install: $(TARGET) $(TARGET_NV)
 	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
 	@echo "Libs: -L\$${libdir} -lvdpau_sunxi" >> ${PCFILE}
 	@echo "Requires: cedar_access" >> ${PCFILE}
-	cp ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/vdpau_sunxi.pc
+	install -D ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/vdpau_sunxi.pc
 	@rm ${PCFILE}
 
 uninstall:
