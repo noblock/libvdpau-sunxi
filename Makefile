@@ -3,7 +3,7 @@ CROSS_COMPILE ?=
 TARGET_BASE = libvdpau_sunxi.so
 TARGET = $(TARGET_BASE).1
 SRC = device.c presentation_queue.c surface_output.c surface_video.c \
-	surface_bitmap.c video_mixer.c decoder.c handles.c \
+	surface_bitmap.c video_mixer.c decoder.c \
 	h264.c mpeg12.c mpeg4.c mp4_vld.c mp4_tables.c mp4_block.c msmpeg4.c h265.c 
 
 USE_VP8 = 0
@@ -14,7 +14,7 @@ endif
 
 CEDARV_TARGET_BASE = libcedar_access.so
 CEDARV_TARGET = $(CEDARV_TARGET_BASE).1
-CEDARV_SRC = ve.c veisp.c
+CEDARV_SRC = ve.c veisp.c handles.c
 
 DISPLAY_TARGET_BASE = libcedarDisplay.so
 DISPLAY_TARGET = $(DISPLAY_TARGET_BASE).1
@@ -91,7 +91,7 @@ $(CEDARV_TARGET): $(CEDARV_OBJ)
 	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS_CEDARV) $(LDFLAGS) $(CEDARV_OBJ) $(LIBS) -o $@
 
 $(DISPLAY_TARGET): $(DISPLAY_OBJ) $(CEDARV_TARGET) $(TARGET)
-	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS_DISPLAY) $(LDFLAGS) $(DISPLAY_OBJ) $(LIBS) $(LIBS_CEDARV) $(LIBS_VDPAU_SUNXI) -o $@
+	$(CROSS_COMPILE)$(CC) $(LIB_LDFLAGS_DISPLAY) $(LDFLAGS) $(DISPLAY_OBJ) $(LIBS) $(LIBS_CEDARV) -o $@
 
 clean:
 	rm -f $(OBJ)
@@ -130,7 +130,7 @@ install: $(TARGET) $(TARGET_NV)
 	@echo "Version: 1.0.0" >> ${PCFILE}
 	@echo "Cflags: -I\$${includedir}" >> ${PCFILE}
 	@echo "Libs: -L\$${libdir} -lcedarDisplay" >> ${PCFILE}
-	@echo "Requires: cedar_access vdpau_sunxi" >> ${PCFILE}
+	@echo "Requires: cedar_access" >> ${PCFILE}
 	install -D ${PCFILE} ${DESTDIR}${USRLIB}/pkgconfig/cedarDisplay.pc
 	@rm ${PCFILE}
 
