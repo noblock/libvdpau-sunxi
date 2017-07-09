@@ -17,16 +17,20 @@
  *
  */
 
+#ifdef DEF_RENDERX11
+#define DRI2 1
+#endif /*DEF_RENDERX11*/
 #include "vdpau_private.h"
 #include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include "sunxi_disp_ioctl.h"
+#include "kernel-headers/sunxi_disp_ioctl.h"
 #include "ve.h"
 #include <errno.h>
 #include <stdio.h>
+#include "sunxi_disp.h"
 
 uint64_t get_time(void)
 {
@@ -40,7 +44,6 @@ uint64_t get_time(void)
 
 VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device, Drawable drawable, VdpPresentationQueueTarget *target)
 {
-    uint32_t tmp[4];
     if (!target /* || !drawable */)
         return VDP_STATUS_INVALID_POINTER;
 
@@ -48,6 +51,7 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device, Drawable dr
     if (!dev)
         return VDP_STATUS_INVALID_HANDLE;
 
+    fprintf(stderr, "%s: %d\n", __func__, __LINE__);
     queue_target_ctx_t *qt = handle_create(sizeof(*qt), target, htype_presentation_target);
     if (!qt)
     {
@@ -55,176 +59,21 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device, Drawable dr
         return VDP_STATUS_RESOURCES;
     }
 
+    fprintf(stderr, "%s: %d\n", __func__, __LINE__);
     qt->drawable = drawable;
-    qt->fd = open("/dev/disp", O_RDWR);
-    if (qt->fd == -1)
-    {
+#ifndef DEF_LEGACYDISP
+#ifdef DEF_RENDERX11 
+    qt->disp = sunxi_dispx11_open(dev->display, qt->drawable);
+#endif /*DEF_RENDERX11*/
+#else /*DEF_LEGACYDISP*/
+    qt->disp = sunxi_disp2_open();
+    if (!qt->disp) qt->disp = sunxi_disp0_open();
+#endif /*DEF_LEGACYDISP*/
+    if (!qt->disp) {
         handle_release(device);
         handle_destroy(*target);
         return VDP_STATUS_ERROR;
     }
-
-    dev->fb_fd = open("/dev/fb0", O_RDWR);
-    if (dev->fb_fd == -1)
-    {
-        close(qt->fd);
-        handle_release(device);
-        handle_destroy(*target);
-        return VDP_STATUS_ERROR;
-    }
-
-    int ver = SUNXI_DISP_VERSION;
-    if (ioctl(qt->fd, DISP_CMD_VERSION, &ver) < 0)
-    {
-        close(qt->fd);
-        close(dev->fb_fd);
-        handle_release(device);
-        handle_destroy(*target);
-        return VDP_STATUS_ERROR;
-    }
-
-    if (ioctl(dev->fb_fd, FBIOGET_LAYER_HDL_0, &dev->fb_layer_id))
-    {
-        close(qt->fd);
-        close(dev->fb_fd);
-        handle_release(device);
-        handle_destroy(*target);
-        return VDP_STATUS_ERROR;
-    }
-    uint32_t args[4]; 
-    int i;
-    for (i = 0x65; i <= 0x67; i++)
-    {
-    //release possibly lost allocated layers
-       args[0] = dev->fb_id;
-       args[1] = i;
-       args[2] = 0;
-       args[3] = 0;
-       ioctl(qt->fd, DISP_CMD_LAYER_RELEASE, &args[0]);
-    }
-
-    args[1] = DISP_LAYER_WORK_MODE_SCALER;
-    qt->layer = ioctl(qt->fd, DISP_CMD_LAYER_REQUEST, args);
-    if (qt->layer == 0)
-    {
-            close(qt->fd);
-            close(dev->fb_fd);
-            handle_release(device);
-            handle_destroy(*target);
-            return VDP_STATUS_RESOURCES;
-    }
-
-    //XSetWindowBackground(dev->display, drawable, 0x000102);
-
-    __disp_colorkey_t ck;
-#if 1
-    ck.ck_max.red = ck.ck_min.red = 0x0;
-    ck.ck_max.green = ck.ck_min.green = 0x1;
-    ck.ck_max.blue = ck.ck_min.blue = 0x2;
-    ck.ck_max.alpha = ck.ck_min.alpha = 0xff;
-#endif
-    ck.red_match_rule = 2;
-    ck.green_match_rule = 2;
-    ck.blue_match_rule = 2;
-
-    args[0] = dev->fb_id;
-    args[1] = (unsigned long)(&ck);
-    ioctl(qt->fd, DISP_CMD_SET_COLORKEY, args);
-
-    tmp[0] = dev->fb_id;
-    int ret;
-    ret = ioctl(qt->fd, DISP_CMD_SCN_GET_WIDTH, tmp);
-    qt->screen_width = ret;
-
-    ret = ioctl(qt->fd, DISP_CMD_SCN_GET_HEIGHT, tmp);
-    qt->screen_height = ret;
-
-#if 1
-    __disp_layer_info_t layer_info;
-    tmp[0] = dev->fb_id;
-    tmp[1] = dev->fb_layer_id;
-    tmp[2] = (unsigned long) (&layer_info);
-    tmp[3] = 0;
-    if (ioctl(qt->fd, DISP_CMD_LAYER_GET_PARA, tmp) < 0)
-    {
-            printf("layer get para failed\n");
-    }
-    layer_info.alpha_en = 1;
-    layer_info.alpha_val = 255;
-
-    if (ioctl(qt->fd, DISP_CMD_LAYER_SET_PARA, tmp) < 0)
-    {
-            printf("layer get para failed\n");
-    }
-#endif
-
-#if 0
-    /* Enable color key for the overlay layer */
-    tmp[0] = dev->fb_id;
-    tmp[1] = qt->layer;
-    if (ioctl(qt->fd, DISP_CMD_LAYER_CK_ON, &tmp) < 0)
-    {
-            printf("layer ck on failed\n");
-    }
-#endif
-    args[0] = dev->fb_id;
-    args[1] = (unsigned long)(&ck);
-    args[2] = 0;
-    args[3] = 0;
-    ioctl(qt->fd, DISP_CMD_SET_BKCOLOR, args);
-    
-    tmp[0] = dev->fb_id;
-    tmp[1] = qt->layer;
-    if (ioctl(qt->fd, DISP_CMD_LAYER_TOP, &tmp) < 0)
-    {
-        printf("layer bottom 2 failed\n");
-    }
-#if 0
-    // but should be 1 when layering is fixed again.
-    /* Set the overlay layer below the screen layer */
-    tmp[0] = dev->fb_id;
-    tmp[1] = dev->fb_layer_id;
-    if (ioctl(qt->fd, DISP_CMD_LAYER_TOP, &tmp) < 0)
-    {
-        printf("layer bottom 1 failed\n");
-    }
-#endif
-
-#if 1
-    /* Disable color key and enable global alpha for the screen layer */
-    tmp[0] = dev->fb_id;
-    tmp[1] = dev->fb_layer_id;
-    if (ioctl(qt->fd, DISP_CMD_LAYER_CK_OFF, &tmp) < 0)
-    {
-            printf("layer ck off failed\n");
-    }
-    tmp[0] = dev->fb_id;
-    tmp[1] = dev->fb_layer_id;
-    tmp[2] = 0xFF;
-    if (ioctl(qt->fd,DISP_CMD_LAYER_SET_ALPHA_VALUE,(void*)tmp) < 0)
-    {
-            printf("set alpha value failed\n");
-    }
-
-    tmp[0] = dev->fb_id;
-    tmp[1] = dev->fb_layer_id;
-    if (ioctl(qt->fd, DISP_CMD_LAYER_ALPHA_ON, &tmp) < 0)
-    {
-            printf("alpha on failed\n");
-    }
-#if 0
-    error = ioctl(q->target->fd_disp, DISP_CMD_LAYER_BOTTOM, args);
-    if(error < 0)
-    {
-            printf("layer top failed\n");
-    }
-
-    if (ioctl(qt->fd, DISP_CMD_VIDEO_START, args) < 0)
-    {
-            printf("video start failed\n");
-    }
-#endif
-#endif
     printf("vdpau presentation target queue=%d created\n", *target);
 
     handle_release(device);
@@ -237,11 +86,7 @@ VdpStatus vdp_presentation_queue_target_destroy(VdpPresentationQueueTarget prese
 	if (!qt)
 		return VDP_STATUS_INVALID_HANDLE;
 
-	uint32_t args[4] = { 0, qt->layer, 0, 0 };
-	ioctl(qt->fd, DISP_CMD_LAYER_CLOSE, args);
-	ioctl(qt->fd, DISP_CMD_LAYER_RELEASE, args);
-
-	close(qt->fd);
+        qt->disp->close(qt->disp);
 
         handle_release(presentation_queue_target);
 	handle_destroy(presentation_queue_target);
@@ -349,8 +194,7 @@ VdpStatus vdp_presentation_queue_get_time(VdpPresentationQueue presentation_queu
 
 VdpStatus vdp_presentation_queue_display(VdpPresentationQueue presentation_queue, VdpOutputSurface surface, uint32_t clip_width, uint32_t clip_height, VdpTime earliest_presentation_time)
 {
-        int error;
-
+	int x=0,y=0;
 	queue_ctx_t *q = handle_get(presentation_queue);
 	if (!q)
 		return VDP_STATUS_INVALID_HANDLE;
@@ -374,118 +218,38 @@ VdpStatus vdp_presentation_queue_display(VdpPresentationQueue presentation_queue
 	if (earliest_presentation_time != 0)
 		VDPAU_DBG_ONCE("Presentation time not supported");
 
+	Window c;
+	XTranslateCoordinates(q->device->display, q->target->drawable, RootWindow(q->device->display, q->device->screen), 0, 0, &x, &y, &c);
+	//XClearWindow(q->device->display, q->target->drawable);
+	fprintf(stderr, "%s: %d - %d %d - %d %d\n", __func__, __LINE__, x, y, clip_width, clip_height);
+
+	if (os->vs)
+		q->target->disp->set_video_layer(q->target->disp, x, y, clip_width, clip_height, os);
+	else
+		q->target->disp->close_video_layer(q->target->disp);
+
+#if 0
+	if (q->device->osd_enabled) {
+	  if (os->rgba.flags & RGBA_FLAG_NEEDS_CLEAR)
+	    rgba_clear(&os->rgba);
+
+	  if (os->rgba.flags & RGBA_FLAG_DIRTY)
+	    {
+	      rgba_flush(&os->rgba);
+
+	      q->target->disp->set_osd_layer(q->target->disp, x, y, clip_width, clip_height, os);
+	    }
+	  else
+	    {
+	      q->target->disp->close_osd_layer(q->target->disp);
+	    }
+	}
+#endif /*0*/
+
+
 	//printf("%s: p_q=%d,o_s=%d\n", __FUNCTION__, presentation_queue, surface);
 
 	//Window c;
-	int x=0,y=0;
-	//XTranslateCoordinates(q->device->display, q->target->drawable, RootWindow(q->device->display, q->device->screen), 0, 0, &x, &y, &c);
-	//XClearWindow(q->device->display, q->target->drawable);
-
-	__disp_layer_info_t layer_info;
-	memset(&layer_info, 0, sizeof(layer_info));
-	layer_info.pipe = 1;
-#if 1
-        layer_info.alpha_en = 1;
-        layer_info.alpha_val = 0xff;
-#endif
-	layer_info.mode = DISP_LAYER_WORK_MODE_SCALER;
-	layer_info.fb.format = DISP_FORMAT_YUV420;
-	layer_info.fb.seq = DISP_SEQ_UVUV;
-	switch (os->vs->source_format) {
-	case VDP_YCBCR_FORMAT_YUYV:
-		layer_info.fb.mode = DISP_MOD_INTERLEAVED;
-		layer_info.fb.format = DISP_FORMAT_YUV422;
-		layer_info.fb.seq = DISP_SEQ_YUYV;
-		break;
-	case VDP_YCBCR_FORMAT_UYVY:
-		layer_info.fb.mode = DISP_MOD_INTERLEAVED;
-		layer_info.fb.format = DISP_FORMAT_YUV422;
-		layer_info.fb.seq = DISP_SEQ_UYVY;
-		break;
-	case VDP_YCBCR_FORMAT_NV12:
-		layer_info.fb.mode = DISP_MOD_NON_MB_UV_COMBINED;
-		break;
-	case VDP_YCBCR_FORMAT_YV12:
-		layer_info.fb.mode = DISP_MOD_NON_MB_PLANAR;
-		break;
-	default:
-	case INTERNAL_YCBCR_FORMAT:
-		layer_info.fb.mode = DISP_MOD_MB_UV_COMBINED;
-		break;
-	}
-	
-	layer_info.fb.br_swap = 0;
-	//recalc data to cpu kernel addresses (+ 0x40000000)
-	layer_info.fb.addr[0] = cedarv_virt2phys(os->vs->dataY) + 0x40000000;
-	layer_info.fb.addr[1] = cedarv_virt2phys(os->vs->dataU)/* + os->vs->plane_size*/ + 0x40000000;
-	if( cedarv_isValid(os->vs->dataV))
-	  layer_info.fb.addr[2] = cedarv_virt2phys(os->vs->dataV)/* + os->vs->plane_size + os->vs->plane_size / 4*/ + 0x40000000;
-
-	layer_info.fb.cs_mode = DISP_BT709;
-	layer_info.fb.size.width = os->vs->width; //q->target->screen_width;
-	layer_info.fb.size.height = os->vs->width; //q->target->screen_height;
-#if 0
-       layer_info.src_win.x = 0;
-       layer_info.src_win.y = 0;
-       layer_info.src_win.width = os->vs->width;
-       layer_info.src_win.height = os->vs->height;
-       layer_info.scn_win.x = 0; //x + os->video_x;
-       layer_info.scn_win.y = 0; //y + os->video_y;
-#endif
-	layer_info.src_win.x = os->video_src_rect.x0;
-	layer_info.src_win.y = os->video_src_rect.y0;
-	layer_info.src_win.width = os->video_src_rect.x1 - os->video_src_rect.x0;
-	layer_info.src_win.height = os->video_src_rect.y1 - os->video_src_rect.y0;
-	layer_info.scn_win.x = x + os->video_dst_rect.x0;
-	layer_info.scn_win.y = y + os->video_dst_rect.y0;
-	layer_info.scn_win.width = os->video_dst_rect.x1 - os->video_dst_rect.x0;
-	layer_info.scn_win.height = os->video_dst_rect.y1 - os->video_dst_rect.y0;
-	layer_info.ck_enable = 1;
-
-	if (layer_info.scn_win.y < 0)
-	{
-		int cutoff = -(layer_info.scn_win.y);
-		layer_info.src_win.y += cutoff;
-		layer_info.src_win.height -= cutoff;
-		layer_info.scn_win.y = 0;
-		layer_info.scn_win.height -= cutoff;
-	}
-
-
-	uint32_t args[4] = { 0, q->target->layer, (unsigned long)(&layer_info), 0 };
-	error = ioctl(q->target->fd, DISP_CMD_LAYER_SET_PARA, args);
-	if(error < 0)
-	{
-		printf("set para failed\n");
-	}
-
-#if 1
-	error = ioctl(q->target->fd, DISP_CMD_LAYER_OPEN, args);
-	if(error < 0)
-	{
-		printf("layer open failed, fd=%d, errno=%d\n", q->target->fd, errno);
-	}
-	// Note: might be more reliable (but slower and problematic when there
-	// are driver issues and the GET functions return wrong values) to query the
-	// old values instead of relying on our internal csc_change.
-	// Since the driver calculates a matrix out of these values after each
-	// set doing this unconditionally is costly.
-#endif
-	if (os->csc_change) {
-		ioctl(q->target->fd, DISP_CMD_LAYER_ENHANCE_OFF, args);
-		args[2] = 0xff * os->brightness + 0x20;
-		ioctl(q->target->fd, DISP_CMD_LAYER_SET_BRIGHT, args);
-		args[2] = 0x20 * os->contrast;
-		ioctl(q->target->fd, DISP_CMD_LAYER_SET_CONTRAST, args);
-		args[2] = 0x20 * os->saturation;
-		ioctl(q->target->fd, DISP_CMD_LAYER_SET_SATURATION, args);
-		// hue scale is randomly chosen, no idea how it maps exactly
-		args[2] = (32 / 3.14) * os->hue + 0x20;
-		ioctl(q->target->fd, DISP_CMD_LAYER_SET_HUE, args);
-		ioctl(q->target->fd, DISP_CMD_LAYER_ENHANCE_ON, args);
-		os->csc_change = 0;
-	}
-
         handle_release(presentation_queue);
         handle_release(surface);
 	return VDP_STATUS_OK;

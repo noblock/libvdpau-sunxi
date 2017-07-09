@@ -64,12 +64,6 @@ typedef struct
     int screen;
     VdpPreemptionCallback *preemption_callback;
     void *preemption_callback_context;
-    int fd_disp;
-    int fb_fd;
-    int fb_layer_id;
-    int fb_id;
-    int g2d_fd;
-    int osd_enabled;
 } device_ctx_t;
 
 typedef struct video_surface_ctx_struct
@@ -87,7 +81,7 @@ typedef struct video_surface_ctx_struct
 	int plane_size;
 	void *decoder_private;
 	void (*decoder_private_free)(struct video_surface_ctx_struct *surface);
-    uint8_t frame_decoded;
+        uint8_t frame_decoded;
 } video_surface_ctx_t;
 
 typedef struct decoder_ctx_struct
@@ -105,10 +99,7 @@ typedef struct decoder_ctx_struct
 typedef struct
 {
     Drawable drawable;
-    int fd;
-    int layer;
-    int screen_height;
-    int screen_width;
+    struct sunxi_disp *disp;
 } queue_target_ctx_t;
 
 typedef struct
@@ -130,6 +121,23 @@ typedef struct
 	float hue;
 } mixer_ctx_t;
 
+#ifdef DEF_LEGACYDISP2
+#define RGBA_FLAG_DIRTY (1 << 0)
+#define RGBA_FLAG_NEEDS_FLUSH (1 << 1)
+#define RGBA_FLAG_NEEDS_CLEAR (1 << 2)
+
+typedef struct
+{
+	device_ctx_t *device;
+	VdpRGBAFormat format;
+	uint32_t width, height;
+        CEDARV_MEMORY data;
+	VdpRect dirty;
+	uint32_t flags;
+  //	pixman_image_t *pimage;
+} rgba_surface_t;
+#endif /*DEF_LEGACYDISP2*/
+
 typedef struct
 {
 	device_ctx_t *device;
@@ -143,6 +151,9 @@ typedef struct
 	float saturation;
 	float hue;
 	enum VdpauNVState vdpNvState;
+#ifdef DEF_LEGACYDISP2
+        rgba_surface_t rgba;
+#endif /*DEF_LEGACYDISP2*/
 } output_surface_ctx_t;
 
 #ifndef ARRAY_SIZE

@@ -8,7 +8,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include "ve.h"
-#include "sunxi_disp_ioctl.h"
+#include "kernel-headers/sunxi_disp_ioctl.h"
 #include <errno.h>
 #include <string.h>
 #include <math.h>
@@ -347,13 +347,16 @@ void cedarv_sw_convertMb32420ToNv21Y(char* pSrc,char* pDst,int nWidth, int nHeig
     			lineNum = i*32 + m;           //line num
     			offset =  lineNum*nLineStride + j*32;
     			dstAsm = pDst+ offset;
-
-    			 asm volatile (
+#ifdef __aarch64__
+			fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
+			asm volatile (
     					        "vld1.8         {d0 - d3}, [%[srcAsm]]              \n\t"
     					        "vst1.8         {d0 - d3}, [%[dstAsm]]              \n\t"
     					       	: [dstAsm] "+r" (dstAsm), [srcAsm] "+r" (srcAsm)
     					       	:  //[srcY] "r" (srcY)
     					       	: "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31");
+#endif /*__aarch64__*/
     			ptr += 32;
     		}
     	}
@@ -374,12 +377,16 @@ void cedarv_sw_convertMb32420ToNv21Y(char* pSrc,char* pDst,int nWidth, int nHeig
     	 	lineNum = i*32 + m;           //line num
     		offset =  lineNum*nLineStride + j*32;
 
+#ifdef __aarch64__
+		fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
     	   	 asm volatile (
     	    	      "vld1.8         {d0 - d3}, [%[srcAsm]]              \n\t"
     	              "vst1.8         {d0 - d3}, [%[dstAsm]]              \n\t"
     	         	    : [dstAsm] "+r" (dstAsm), [srcAsm] "+r" (srcAsm)
     	    	     	:  //[srcY] "r" (srcY)
     	    	    	: "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31");
+#endif /*__aarch64__*/
     	   	ptr += 32;
     	   	for(k=0; k<32; k++)
     	   	{
@@ -444,6 +451,9 @@ void cedarv_sw_convertMb32420ToNv21C(char* pSrc,char* pDst,int nPicWidth, int nP
     			lineNum = i*32 + m;           //line num
     			offset =  lineNum*nLineStride + j*32;
 
+#ifdef __aarch64__
+			fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
     			asm volatile(
     					"vld2.8         {d0-d3}, [%[srcAsm]]              \n\t"
     			    	"vst1.8         {d0,d1}, [%[dst0Asm]]              \n\t"
@@ -452,6 +462,7 @@ void cedarv_sw_convertMb32420ToNv21C(char* pSrc,char* pDst,int nPicWidth, int nP
     			        :  //[srcY] "r" (srcY)
     			        : "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31"
     			     );
+#endif /*__aarch64__*/
     			ptr += 32;
 
 
@@ -530,7 +541,10 @@ void cedarv_sw_convertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     			lineNum = i*32 + m;           //line num
     			offset =  lineNum*nLineStride + j*16;
     			dst0Asm = pDstU+offset;
-    		    dst1Asm = pDstV+offset;
+			dst1Asm = pDstV+offset;
+#ifdef __aarch64__
+			fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
     			asm volatile(
     					"vld2.8         {d0-d3}, [%[srcAsm]]              \n\t"
     			    	"vst1.8         {d0,d1}, [%[dst0Asm]]              \n\t"
@@ -539,6 +553,7 @@ void cedarv_sw_convertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     			        :  //[srcY] "r" (srcY)
     			        : "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31"
     			     );
+#endif /*__aarch64__*/
     			ptr += 32;
     		}
     	}
@@ -561,6 +576,9 @@ void cedarv_sw_convertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     		offset =  lineNum*nLineStride + j*16;
     	   	dst0Asm = bufferU;
         	dst1Asm = bufferV;
+#ifdef __aarch64__
+		fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
     	   	asm volatile(
     	   			"vld2.8         {d0-d3}, [%[srcAsm]]              \n\t"
     	    		"vst1.8         {d0,d1}, [%[dst0Asm]]              \n\t"
@@ -569,6 +587,7 @@ void cedarv_sw_convertMb32420ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     	            :  //[srcY] "r" (srcY)
     	            : "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31"
     	         );
+#endif /*__aarch64__*/
     	   	ptr += 32;
 
     	   	for(k=0; k<16; k++)
@@ -648,6 +667,9 @@ void cedarv_sw_convertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     			dst1Asm = pDstV+offset;
 
 
+#ifdef __aarch64__
+			fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
     			asm volatile(
     					"vld2.8         {d0-d3}, [%[srcAsm]]              \n\t"
     			    	"vst1.8         {d0,d1}, [%[dst0Asm]]              \n\t"
@@ -656,6 +678,7 @@ void cedarv_sw_convertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     			        :  //[srcY] "r" (srcY)
     			        : "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31"
     			     );
+#endif /*__aarch64__*/
     			ptr += 64;
     		}
     	}
@@ -678,6 +701,9 @@ void cedarv_sw_convertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     	   	lineNum = i*16 + m;           //line num
     		offset =  lineNum*nLineStride + j*16;
 
+#ifdef __aarch64__
+		fprintf(stderr, "%s: asm volatile to be updated (%d)...\n", __func__, __LINE__);
+#else /*__aarch64__*/
     	   	asm volatile(
     	    			"vld2.8         {d0-d3}, [%[srcAsm]]              \n\t"
     	    		 	"vst1.8         {d0,d1}, [%[dst0Asm]]              \n\t"
@@ -686,6 +712,7 @@ void cedarv_sw_convertMb32422ToYv12C(char* pSrc,char* pDstU, char*pDstV,int nPic
     	    	        :  //[srcY] "r" (srcY)
     	    	        : "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23", "d24", "d28", "d29", "d30", "d31"
     	   		     );
+#endif /*__aarch64__*/
     	   	ptr += 64;
 
     	   	for(k=0; k<16; k++)

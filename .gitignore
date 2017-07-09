@@ -1,3 +1,9 @@
 *.d
 *.o
+*.rej
+*~
 libvdpau_sunxi.so.1
+libcedarDisplay.so.1
+libcedar_access.so
+libcedar_access.so.1
+libvdpau_nv_sunxi.so.1

@@ -37,25 +37,14 @@ VdpStatus vdp_imp_device_create_x11(Display *display, int screen, VdpDevice *dev
 	if (!dev)
 		return VDP_STATUS_RESOURCES;
 
-	//dev->display = XOpenDisplay(XDisplayString(display));
+	dev->display = display;
 	dev->screen = screen;
-        dev->fb_id = 0;
 
 	if (!cedarv_open())
 	{
 		VDPAU_DBG_ONCE("cedarv_open failed");
 		handle_destroy(*device);
 		return VDP_STATUS_ERROR;
-	}
-
-	char *env_vdpau_osd = getenv("VDPAU_OSD");
-	if (env_vdpau_osd && strncmp(env_vdpau_osd, "1", 1) == 0)
-	{
-		dev->g2d_fd = open("/dev/g2d", O_RDWR);
-		if (dev->g2d_fd != -1)
-			dev->osd_enabled = 1;
-		else
-			VDPAU_DBG("Failed to open /dev/g2d! OSD disabled.");
 	}
 
         VDPAU_DBG("VE version 0x%04x opened", cedarv_get_version());

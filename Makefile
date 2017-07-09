@@ -7,6 +7,9 @@ SRC = device.c presentation_queue.c surface_output.c surface_video.c \
 	h264.c mpeg12.c mpeg4.c mp4_vld.c mp4_tables.c mp4_block.c msmpeg4.c h265.c 
 
 USE_VP8 = 0
+USE_LEGACYDISP = 1
+USE_LEGACYDISP2 = 1
+USE_RENDERX11 = 1
 
 ifeq ($(USE_VP8),1)
 SRC += "vp8_decoder.c vp8.c"
@@ -27,7 +30,7 @@ NV_SRC = opengl_nv.c
 VE_H_INCLUDE = ve.h
 LIBCEDARDISPLAY_H_INCLUDE = libcedarDisplay.h
 
-CFLAGS ?= -Wall -O0 -g 
+CFLAGS ?=-Wall -O2 -fomit-frame-pointer  -I/usr/local/include
 LDFLAGS ?=
 LIBS = -lrt -lm -lpthread
 LIBS_EGL = -lEGL
@@ -45,6 +48,20 @@ ifeq ($(USE_UMP),1)
 LIBS  += -lUMP
 CFLAGS += -DUSE_UMP=1
 endif
+
+ifeq ($(USE_LEGACYDISP),1)
+CFLAGS += -DDEF_LEGACYDISP
+SRC += sunxi_disp.c sunxi_renderdisp0.c
+ifeq ($(USE_LEGACYDISP2),1)
+CFLAGS += -DDEF_LEGACYDISP2
+SRC += sunxi_disp2.c
+endif
+endif
+ifeq ($(USE_RENDERX11),1)
+CFLAGS += -DDEF_RENDERX11 -DDEF_SHM
+SRC += sunxi_renderx11.c
+endif
+
 
 MAKEFLAGS += -rR --no-print-directory
 

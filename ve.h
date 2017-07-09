@@ -46,7 +46,7 @@ void* cedarv_get_regs();
 CEDARV_MEMORY cedarv_malloc(int size);
 int cedarv_isValid(CEDARV_MEMORY mem);
 void cedarv_free(CEDARV_MEMORY mem);
-uint32_t cedarv_virt2phys(CEDARV_MEMORY mem);
+uintptr_t cedarv_virt2phys(CEDARV_MEMORY mem);
 void cedarv_flush_cache(CEDARV_MEMORY mem, int len);
 void cedarv_memcpy(CEDARV_MEMORY dst, size_t offset, const void * src, size_t len);
 void cedarv_memset(CEDARV_MEMORY dst, unsigned char value, size_t len);

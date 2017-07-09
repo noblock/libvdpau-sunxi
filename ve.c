@@ -315,9 +315,9 @@ void cedarv_free(CEDARV_MEMORY mem)
   ump_reference_release(mem.mem_id);
 }
 
-uint32_t cedarv_virt2phys(CEDARV_MEMORY mem)
+uintptr_t cedarv_virt2phys(CEDARV_MEMORY mem)
 {
-  return (uint32_t)ump_phys_address_get(mem.mem_id);
+  return (uintptr_t)ump_phys_address_get(mem.mem_id);
 }
 
 void cedarv_flush_cache(CEDARV_MEMORY mem, int len)
